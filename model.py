@@ -203,17 +203,14 @@ def create_model(data):
     # Create decision variables for the NFP model
     x_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in
-            D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
+            for d in D for (i, j, t) in A}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
     y_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="y_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in
-            D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
+            for d in D for (i, j, t) in A}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
 
     s_dit = {(d, i, t): m.addVar(vtype=GRB.BINARY,
                                  name="s_{0}_{1}_{2}".format(d, i, t))
-             for t in t_set for i in N for d in
-             D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
+             for d in D for i in N for t in t_set}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
     b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in
            D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
 
@@ -231,15 +228,15 @@ def create_model(data):
                                        + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
                                        quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]),
                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
-                       for (i, j, t) in A for d in D}
+                       for d in D for (i, j, t) in A}
 
-#    driver_movement1 = {(d, i):
-#                            m.addConstr(quicksum(
-#                                (x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
-#                                        quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if
-#                                                 j2 == i),
-#                                        name="driver_movement1_{0}_{1}".format(d, i))
-#                        for d in D for i in N}
+    driver_movement1 = {(d, i):
+                            m.addConstr(quicksum(
+                                (x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
+                                        quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if
+                                                 j2 == i),
+                                        name="driver_movement1_{0}_{1}".format(d, i))
+                        for d in D for i in N}
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = {d: m.addConstr(
@@ -280,11 +277,11 @@ def create_model(data):
     # Additional constraints
 #    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
 #                                    for t in t_set for i in N for d in D), name='dm_constraints')
-    #    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
-    #                                    for t in t_set for d in D), name='dm_constraints1')
-    #    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
-    #                                    quicksum(y_da[d, i2, j2, t2] for (i2, j2, t2) in Aay[i, j, t]) <= b_d[d]
-    #                                    for (i, j, t) in A for d in D), name='dm_constraints2')
+    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
+                                    for t in t_set for d in D), name='dm_constraints1')
+#    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
+#                                    quicksum(y_da[d, i2, j2, t2] for (i2, j2, t2) in Aay[i, j, t]) <= b_d[d]
+#                                    for (i, j, t) in A for d in D), name='dm_constraints2')
 
     # Save model for inspection
     m.write('NFP.lp')
