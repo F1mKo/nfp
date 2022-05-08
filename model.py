@@ -12,6 +12,9 @@ import gurobipy as gp
 from gurobipy import GRB, quicksum
 import grblogtools
 
+from mpl_toolkits import mplot3d
+import numpy as np
+import matplotlib.pyplot as plt
 
 def get_database(path):
     wb = openpyxl.load_workbook(filename=path)
@@ -46,6 +49,21 @@ def arc_param(arcs, param):
     return result
 
 
+def plot_network(arcs, distances):
+    fig = plt.figure()
+    #    ax = plt.axes(projection='3d')
+    ax = plt.axes()
+    for a in arcs:
+        ax.plot([a[0], a[1]], [a[2], a[2] + distances[a[0], a[1], a[2]] % 168], 'gray')
+    # Data for three-dimensional scattered points
+    #    zdata = [item[2] for item in arcs]
+    #    xdata = [item[0] for item in arcs]
+    #    ydata = [item[1] for item in arcs]
+    #    ax.plot3D(xdata, ydata, zdata, 'gray')
+    #    ax.plot(ydata, zdata, 'gray')
+    #    ax.view_init(0, 90)
+    plt.show()
+
 def preprocessing(case, cycle_len):
     # case data processing
 
@@ -76,19 +94,21 @@ def preprocessing(case, cycle_len):
     # forward/backward Arc matrix
     arcs = arcs_creator(departures, distances, cycle_len)
 
-    # unique time set
-    t_set = set([item[2] for item in arcs])
-    t_set = list(sorted(t_set))
-
     # crew size for each arc
     arc_crew_size = arc_param(arcs, crew_size)
 
     # arcs service durations
     t_a = arc_param(arcs, distances)
 
+    #plot_network(arcs, t_a)
+    # unique time set
+    t_set = set([item[2] for item in arcs])
+    t_set = list(sorted(t_set))
+
     # A_a_x and A_a_y set
-    Aax = {(i, j, t): find_closest_arrive((i, j, t), arcs, t_a, 11, cycle_length) for (i, j, t) in arcs}
-    Aay = {(i, j, t): find_closest_arrive((i, j, t), arcs, t_a, 24, cycle_length) for (i, j, t) in arcs}
+    time_limit = cycle_len * 24
+    Aax = {(i, j, t): find_closest_arrive((i, j, t), arcs, t_a, 11, time_limit) for (i, j, t) in arcs}
+    Aay = {(i, j, t): find_closest_arrive((i, j, t), arcs, t_a, 24, time_limit) for (i, j, t) in arcs}
 
     result = {
         'Nodes set': nodes,  # set of nodes in the network
@@ -106,58 +126,55 @@ def preprocessing(case, cycle_len):
     return result
 
 
-def route_sim(departures, distances, cycle):
-    result = []
+def route_sim(departures, distances, cycle_len):
+    result_forward = []
+    result_backward = []
     n = len(distances)
-    time_limit = 24 * cycle
-    for i in range(cycle):
+    time_limit = 24 * cycle_len
+    for i in range(cycle_len):
         dep_forward = departures[0] + i * 24
         dep_backward = departures[1] + i * 24
-        result.append([0, 1, dep_forward])
-        result.append([n, n - 1, dep_backward])
-        for j in range(n):
-            dep_forward += distances[j]
-            dep_backward += distances[n - j - 1]
-            result.append([j, j + 1, dep_forward % time_limit])
-            result.append([n - j, n - j - 1, dep_backward % time_limit])
-    return result
+        result_forward.append([0, 1, dep_forward])
+        result_backward.append([n, n - 1, dep_backward])
+        for j in range(1, n):
+            dep_forward += distances[j - 1]
+            dep_backward += distances[n - j]
+            result_forward.append([j, j + 1, dep_forward % time_limit])
+            result_backward.append([n - j, n - j - 1, dep_backward % time_limit])
+    return result_forward + result_backward
 
 
 def arcs_creator(departures, distances, cycle_len=7):
     # Generate forward/backward Arc matrix
     arcs = []
     if isinstance(departures[0], list) and isinstance(departures[1], list):
-        for cur_dep in zip(departures[0], departures[1]):
-            temp = route_sim(cur_dep, distances, cycle_len)
+        for cur_deps in zip(departures[0], departures[1]):
+            temp = route_sim(cur_deps, distances, cycle_len)
             arcs += temp
     else:
         arcs = route_sim(departures, distances, cycle_len)
-    arcs = sorted(arcs, key=lambda item: item[2])
+#    arcs = sorted(arcs, key=lambda item: item[2])
     return arcs
 
 
-def find_closest_arrive(a_, arcs, arc_len, rest_time, days_total):  # 11 or 24 relax time duration
+def find_closest_arrive(a_, arcs, arc_len, rest_time, time_limit):  # 11 or 24 relax time duration
     result = []
-    time_limit = days_total * 24
-    if a_[2] >= rest_time:
-        time = a_[2] - rest_time
-    else:
-        time = a_[2] - rest_time + time_limit
+    time = a_[2]
     t_closest = 2 * time_limit
     for a in arcs[::-1]:
         if a[1] == a_[0]:
-            t_arrive = a[2] + arc_len[a[0], a[1], a[2]]
-            if time >= t_arrive:
+            t_arrive = (a[2] + arc_len[a[0], a[1], a[2]] + rest_time) % time_limit
+            if t_arrive <= time:
                 t_between = time - t_arrive
             else:
-                t_between = time + time_limit - t_arrive
+                t_between = time - t_arrive + time_limit
             if t_between <= t_closest:
                 if t_between < t_closest:
                     t_closest = t_between
                     result = [a]
                 else:
                     result.append(a)
-#    print('rel_time', rest_time, 'ans', a_, '==', result)
+    #print('rel_time', rest_time, 'ans', a_, '==', result)
     return result
 
 
@@ -180,33 +197,47 @@ def create_model(data):
     m = gp.Model('NFP')
 
     # Create decision variables for the NFP model
-    da = [(d, i, j, t) for (i, j, t) in A for d in D]
-    x_da = m.addVars(da, vtype=GRB.BINARY,
-                     name='x_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
-    y_da = m.addVars(da, vtype=GRB.BINARY,
-                     name='y_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
-    dit = [(d, i, t) for t in t_set for i in N for d in D]
-    s_dit = m.addVars(dit, vtype=GRB.BINARY,
-                      name='s_dit')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
-    b_d = m.addVars(D, vtype=GRB.BINARY,
-                    name='b_d')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
+    #    da = [(d, i, j, t) for (i, j, t) in A for d in D]
+    x_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
+                                   name="x_{0}_{1}_{2}_{3}".format(d, i, j, t)) for (i, j, t) in A for d in D}
+    #    x_da = m.addVars(da, vtype=GRB.BINARY,
+    #                     name='x_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
+    y_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
+                                   name="y_{0}_{1}_{2}_{3}".format(d, i, j, t)) for (i, j, t) in A for d in D}
+    #    y_da = m.addVars(da, vtype=GRB.BINARY,
+    #                    name='y_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
+    #    dit = [(d, i, t) for t in t_set for i in N for d in D]
+    s_dit = {(d, i, t): m.addVar(vtype=GRB.BINARY,
+                                 name="s_{0}_{1}_{2}".format(d, i, t)) for t in t_set for i in N for d in D}
+    #    s_dit = m.addVars(dit, vtype=GRB.BINARY,
+    #                      name='s_dit')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
+    b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in D}
+    #    b_d = m.addVars(D, vtype=GRB.BINARY,
+    #                    name='b_d')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
 
     # Create variables for convenient output
-    work_d = m.addVars(D, vtype=GRB.CONTINUOUS, name='driver_work_duration')
+    work_d = {d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_work_duration".format(d)) for d in D}
+    #    work_d = m.addVars(D, vtype=GRB.CONTINUOUS, name='driver_work_duration')
 
     # Objective: maximize total matching score of all assignments
     m.setObjective(quicksum(b_d[i] for i in D), GRB.MINIMIZE)
-    A_cycle = copy.deepcopy(A)
-#    A_cycle.append(A[0])
-    t_set_cycle = copy.deepcopy(t_set)
-    t_set_cycle.append(t_set[0])
+    #    A_cycle = copy.deepcopy(A)
+    #    A_cycle.append(A[0])
+    #    t_set_cycle = copy.deepcopy(t_set)
+    #    t_set_cycle.append(t_set[0])
 
     # Create constraints
     driver_movement = m.addConstrs(((s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
-                                     quicksum(s_dit[d, i, t_set[k]] for k in range(len(t_set)) if t_set_cycle[k+1] == t)
-                                     + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) + quicksum(
-                (y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t])) for (i, j, t) in A_cycle
-                                     for d in D), name='driver_movement')
+                                     s_dit[d, i, t_set[k - 1]]
+                                     + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
+                                     quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]))
+                                    for k in range(len(t_set)) for (i, j, t) in A if t == t_set[k] for d in D),
+                                   name='driver_movement')
+
+#    driver_movement1 = m.addConstrs((quicksum((x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
+#                                     quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if j2 == i)
+#                                     for i in N for d in D),
+#                                    name='driver_movement1')
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = m.addConstrs(
@@ -225,13 +256,16 @@ def create_model(data):
     weekly_rest_constraints = m.addConstrs((quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d] for d in D),
                                            name='weekly_rest_constraints')
     # Create weekly rest constraints
-    dm_constraints = m.addConstrs((s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] == b_d[d]
-                                   for (i, j, t) in A for d in D), name='dm_constraints')
+#    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
+#                                   for t in t_set for i in N for d in D), name='dm_constraints')
 
-    # Create weekly rest constraints
-#    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
-#                                   for t in t_set for d in D), name='dm_constraints1')
-
+    #    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
+    #                                    for t in t_set for d in D), name='dm_constraints1')
+    #    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
+    #                                    quicksum(y_da[d, i2, j2, t2] for (i2, j2, t2) in Aay[i, j, t]) <= b_d[d]
+    #                                    for (i, j, t) in A for d in D), name='dm_constraints2')
+    #    dm_constraints3 = m.addConstrs((quicksum(y_da[d, i1, j1, t1] for (i1, j1, t1) in Aay[i, j, t]) <= b_d[d]
+    #                                    for (i, j, t) in A for d in D), name='dm_constraints3')
     # Create driver selection definition
     driver_selection_definition = m.addConstrs(
         (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d] for d in D),
@@ -239,12 +273,11 @@ def create_model(data):
 
     # Create driver selection symmetry breaking constraints
     driver_selection_symmetry = m.addConstrs((b_d[D[i]] >= b_d[D[i + 1]] for i in range(len(D) - 1)),
-                                             name='driver_selection_definition')
+                                             name='driver_selection_symmetry')
 
     # Save model for inspection
     m.write('NFP.lp')
     return (m)
-
 
 now = datetime.now()
 # Get scenario data
@@ -258,7 +291,8 @@ m = create_model(data)
 
 # Run optimization engine
 m.optimize()
-
+m.computeIIS()
+m.write("model.ilp")
 # Display optimal values of decision variables
 # print(m.getVars())
 for v in m.getVars():
@@ -271,11 +305,9 @@ print('Total execution time', datetime.now() - now)
 # Display optimal total matching score
 # print('Total matching score: ', m.objVal)
 
-varInfo = [(v.varName, v.X) for v in m.getVars() if v.X > 0]
+varInfo = [(v.varName.split('_')[1], v.varName.split('_')[-1], v.varName, v.X) for v in m.getVars() if v.X > 0]
 
 # Write to csv
 with open('model_out.csv', 'w') as myfile:
     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
     wr.writerows(varInfo)
-
-
