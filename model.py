@@ -222,21 +222,20 @@ def create_model(data):
 
     # Create constraints
     driver_movement = {(d, i, j, t):
-                           m.addConstr(s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
-                                       quicksum(
-                                           s_dit[d, i, t_set[k - 1]] for k in range(len(t_set)) if t_set[k] == t)
+                           m.addConstr(s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] == quicksum(
+                                        s_dit[d, i, t_set[k - 1]] for k in range(len(t_set)) if t_set[k] == t)
                                        + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
                                        quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]),
                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
                        for d in D for (i, j, t) in A}
 
-    driver_movement1 = {(d, i):
-                            m.addConstr(quicksum(
-                                (x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
-                                        quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if
-                                                 j2 == i),
-                                        name="driver_movement1_{0}_{1}".format(d, i))
-                        for d in D for i in N}
+#    driver_movement1 = {(d, i):
+#                            m.addConstr(quicksum(
+#                                (x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
+#                                        quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if
+#                                                 j2 == i),
+#                                        name="driver_movement1_{0}_{1}".format(d, i))
+#                        for d in D for i in N}
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = {d: m.addConstr(
@@ -277,8 +276,8 @@ def create_model(data):
     # Additional constraints
 #    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
 #                                    for t in t_set for i in N for d in D), name='dm_constraints')
-    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
-                                    for t in t_set for d in D), name='dm_constraints1')
+#    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
+#                                    for t in t_set for d in D), name='dm_constraints1')
 #    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
 #                                    quicksum(y_da[d, i2, j2, t2] for (i2, j2, t2) in Aay[i, j, t]) <= b_d[d]
 #                                    for (i, j, t) in A for d in D), name='dm_constraints2')
