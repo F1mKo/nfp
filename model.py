@@ -203,15 +203,19 @@ def create_model(data):
     # Create decision variables for the NFP model
     x_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
+            for (i, j, t) in A for d in
+            D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
     y_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="y_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
+            for (i, j, t) in A for d in
+            D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
 
     s_dit = {(d, i, t): m.addVar(vtype=GRB.BINARY,
                                  name="s_{0}_{1}_{2}".format(d, i, t))
-             for t in t_set for i in N for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
-    b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
+             for t in t_set for i in N for d in
+             D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
+    b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in
+           D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
 
     # Create variables for convenient output
     work_d = {d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_work_duration".format(d)) for d in D}
@@ -229,11 +233,13 @@ def create_model(data):
                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
                        for (i, j, t) in A for d in D}
 
-    #    driver_movement1 = m.addConstrs((quicksum((x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
-    #                                     quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if j2 == i)
-    #                                     for i in N for d in D),
-    #                                    name='driver_movement1')
-
+#    driver_movement1 = {(d, i):
+#                            m.addConstr(quicksum(
+#                                (x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
+#                                        quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if
+#                                                 j2 == i),
+#                                        name="driver_movement1_{0}_{1}".format(d, i))
+#                        for d in D for i in N}
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = {d: m.addConstr(
@@ -248,7 +254,6 @@ def create_model(data):
     symmetry_breaking_wwd_constraints = {D[i]: m.addConstr(work_d[D[i + 1]] <= work_d[D[i]],
                                                            name="symmetry_breaking_wwd_constraints_{0}".format(D[i]))
                                          for i in range(len(D) - 1)}
-
 
     # Create crew size constraints
     crew_size_constraints = {
@@ -273,15 +278,13 @@ def create_model(data):
                                         for i in range(len(D) - 1)}
 
     # Additional constraints
-    #    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
-    #                                    for t in t_set for i in N for d in D), name='dm_constraints')
+#    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
+#                                    for t in t_set for i in N for d in D), name='dm_constraints')
     #    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
     #                                    for t in t_set for d in D), name='dm_constraints1')
     #    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
     #                                    quicksum(y_da[d, i2, j2, t2] for (i2, j2, t2) in Aay[i, j, t]) <= b_d[d]
     #                                    for (i, j, t) in A for d in D), name='dm_constraints2')
-    #    dm_constraints3 = m.addConstrs((quicksum(y_da[d, i1, j1, t1] for (i1, j1, t1) in Aay[i, j, t]) <= b_d[d]
-    #                                    for (i, j, t) in A for d in D), name='dm_constraints3')
 
     # Save model for inspection
     m.write('NFP.lp')
@@ -293,15 +296,15 @@ now = datetime.now()
 df = get_database('C:/Users/F1mKo/PycharmProjects/gurobi_conda/scenarios.xlsx')
 cur_case = catch_case(df, '10733_1')
 cycle_length = 7
-data = preprocessing(cur_case.values[0], cycle_length)
+case_data = preprocessing(cur_case.values[0], cycle_length)
 
 # Declare and initialize model
-model = create_model(data)
+model = create_model(case_data)
 
 # Run optimization engine
 model.optimize()
-#model.computeIIS()
-#model.write("model.ilp")
+# model.computeIIS()
+# model.write("model.ilp")
 # Display optimal values of decision variables
 # print(m.getVars())
 for v in model.getVars():
