@@ -16,6 +16,7 @@ from mpl_toolkits import mplot3d
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def get_database(path):
     wb = openpyxl.load_workbook(filename=path)
     sheet = wb['augmentation']
@@ -64,6 +65,7 @@ def plot_network(arcs, distances):
     #    ax.view_init(0, 90)
     plt.show()
 
+
 def preprocessing(case, cycle_len):
     # case data processing
 
@@ -75,7 +77,7 @@ def preprocessing(case, cycle_len):
     crew_size = split_data(case[1])
 
     # drivers set
-    drivers = [i for i in range(0, n ** 2)]
+    drivers = [i for i in range(0, n ** 2 // 2)]
 
     # Generate Nodes list
     nodes = [i for i in range(n + 1)]
@@ -100,7 +102,8 @@ def preprocessing(case, cycle_len):
     # arcs service durations
     t_a = arc_param(arcs, distances)
 
-    #plot_network(arcs, t_a)
+    # plot_network(arcs, t_a)
+
     # unique time set
     t_set = set([item[2] for item in arcs])
     t_set = list(sorted(t_set))
@@ -121,7 +124,6 @@ def preprocessing(case, cycle_len):
         'time set': t_set,  # unique time set
         'arc crew size': arc_crew_size,  # crew size on the arc 𝑎 ∈ 𝐴
         'arcs service time': t_a  # arcs service durations
-
     }
     return result
 
@@ -153,7 +155,8 @@ def arcs_creator(departures, distances, cycle_len=7):
             arcs += temp
     else:
         arcs = route_sim(departures, distances, cycle_len)
-#    arcs = sorted(arcs, key=lambda item: item[2])
+    #    arcs = sorted(arcs, key=lambda item: item[2])
+    # print(arcs)
     return arcs
 
 
@@ -174,7 +177,7 @@ def find_closest_arrive(a_, arcs, arc_len, rest_time, time_limit):  # 11 or 24 r
                     result = [a]
                 else:
                     result.append(a)
-    #print('rel_time', rest_time, 'ans', a_, '==', result)
+    # print('rel_time', rest_time, 'ans', a_, '==', result)
     return result
 
 
@@ -199,16 +202,19 @@ def create_model(data):
     # Create decision variables for the NFP model
     #    da = [(d, i, j, t) for (i, j, t) in A for d in D]
     x_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
-                                   name="x_{0}_{1}_{2}_{3}".format(d, i, j, t)) for (i, j, t) in A for d in D}
+                                   name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
+            for (i, j, t) in A for d in D}
     #    x_da = m.addVars(da, vtype=GRB.BINARY,
     #                     name='x_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
     y_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
-                                   name="y_{0}_{1}_{2}_{3}".format(d, i, j, t)) for (i, j, t) in A for d in D}
+                                   name="y_{0}_{1}_{2}_{3}".format(d, i, j, t))
+            for (i, j, t) in A for d in D}
     #    y_da = m.addVars(da, vtype=GRB.BINARY,
     #                    name='y_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
     #    dit = [(d, i, t) for t in t_set for i in N for d in D]
     s_dit = {(d, i, t): m.addVar(vtype=GRB.BINARY,
-                                 name="s_{0}_{1}_{2}".format(d, i, t)) for t in t_set for i in N for d in D}
+                                 name="s_{0}_{1}_{2}".format(d, i, t))
+             for t in t_set for i in N for d in D}
     #    s_dit = m.addVars(dit, vtype=GRB.BINARY,
     #                      name='s_dit')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
     b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in D}
@@ -227,38 +233,82 @@ def create_model(data):
     #    t_set_cycle.append(t_set[0])
 
     # Create constraints
-    driver_movement = m.addConstrs(((s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
-                                     s_dit[d, i, t_set[k - 1]]
-                                     + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
-                                     quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]))
-                                    for k in range(len(t_set)) for (i, j, t) in A if t == t_set[k] for d in D),
-                                   name='driver_movement')
+    driver_movement = {(d, i, j, t):
+                           m.addConstr(s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
+                                       quicksum(
+                                           s_dit[d, i, t_set[k - 1]] for k in range(len(t_set)) if t_set[k] == t)
+                                       + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
+                                       quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]),
+                                       name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                       for (i, j, t) in A for d in D}
+    #    driver_movement = m.addConstrs(((s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
+    #                                     quicksum(s_dit[d, i, t_set[k - 1]] for k in range(len(t_set)) if t_set[k] == t)
+    #                                     + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
+    #                                     quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]))
+    #                                    for (i, j, t) in A for d in D),
+    #                                   name='driver_movement')
 
-#    driver_movement1 = m.addConstrs((quicksum((x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
-#                                     quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if j2 == i)
-#                                     for i in N for d in D),
-#                                    name='driver_movement1')
+    #    driver_movement1 = m.addConstrs((quicksum((x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
+    #                                     quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if j2 == i)
+    #                                     for i in N for d in D),
+    #                                    name='driver_movement1')
 
     # Driver weekly work time definition and constraints
-    driver_weekly_work_duration = m.addConstrs(
-        (quicksum(t_a[i, j, t] * (x_da[d, i, j, t] + y_da[d, i, j, t]) for (i, j, t) in Akw) == work_d[d] for d in D),
-        name='driver_wwd_definition')
-    driver_wwd_constraints = m.addConstrs((work_d[d] <= 56 for d in D), name='driver_wwd_constraints')
-    symmetry_breaking_wwd_constraints = m.addConstrs((work_d[D[i + 1]] <= work_d[D[i]] for i in range(len(D) - 1)),
-                                                     name='symmetry_breaking_wwd_constraints')
+    driver_weekly_work_duration = {d: m.addConstr(
+        quicksum(t_a[i, j, t] * (x_da[d, i, j, t] + y_da[d, i, j, t]) for (i, j, t) in Akw) == work_d[d],
+        name="driver_wwd_definition_{0}".format(d))
+        for d in D}
+
+    driver_wwd_constraints = {d: m.addConstr(work_d[d] <= 56,
+                                             name="driver_wwd_constraints_{0}".format(d))
+                              for d in D}
+
+    symmetry_breaking_wwd_constraints = {D[i]: m.addConstr(work_d[D[i + 1]] <= work_d[D[i]],
+                                                           name="driver_wwd_constraints_{0}".format(D[i]))
+                                         for i in range(len(D) - 1)}
+
+    #    driver_weekly_work_duration = m.addConstrs(
+    #        (quicksum(t_a[i, j, t] * (x_da[d, i, j, t] + y_da[d, i, j, t]) for (i, j, t) in Akw) == work_d[d] for d in D),
+    #        name='driver_wwd_definition')
+    #    driver_wwd_constraints = m.addConstrs((work_d[d] <= 56 for d in D), name='driver_wwd_constraints')
+    #    symmetry_breaking_wwd_constraints = m.addConstrs((work_d[D[i + 1]] <= work_d[D[i]] for i in range(len(D) - 1)),
+    #                                                 name='symmetry_breaking_wwd_constraints')
 
     # Create crew size constraints
-    crew_size_constraints = m.addConstrs(
-        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for d in D) == c_a[i, j, t] for (i, j, t) in A),
-        name='crew_size_constr')
+    crew_size_constraints = {
+        (i, j, t): m.addConstr(quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for d in D) == c_a[i, j, t],
+                               name="crew_size_constr_{0}_{1}_{2}".format(i, j, t))
+        for (i, j, t) in A}
+    #    crew_size_constraints = m.addConstrs(
+    #        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for d in D) == c_a[i, j, t] for (i, j, t) in A),
+    #        name='crew_size_constr')
 
     # Create weekly rest constraints
-    weekly_rest_constraints = m.addConstrs((quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d] for d in D),
-                                           name='weekly_rest_constraints')
-    # Create weekly rest constraints
-#    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
-#                                   for t in t_set for i in N for d in D), name='dm_constraints')
+    weekly_rest_constraints = {d: m.addConstr(quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d],
+                                              name="weekly_rest_constraints_{0}".format(d))
+                               for d in D}
+    #    weekly_rest_constraints = m.addConstrs((quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d] for d in D),
+    #                                           name='weekly_rest_constraints')
 
+    #   Create driver selection definition
+    driver_selection_definition = {
+        d: m.addConstr(quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d],
+                       name="driver_selection_definition_{0}".format(d))
+        for d in D}
+    #    driver_selection_definition = m.addConstrs(
+    #        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d] for d in D),
+    #        name='driver_selection_definition')
+
+    # Create driver selection symmetry breaking constraints
+    symmetry_breaking_ds_constraints = {D[i]: m.addConstr(b_d[D[i]] >= b_d[D[i + 1]],
+                                                          name="symmetry_breaking_ds_constraints_{0}".format(D[i]))
+                                        for i in range(len(D) - 1)}
+    #    symmetry_breaking_ds_constraints = m.addConstrs((b_d[D[i]] >= b_d[D[i + 1]] for i in range(len(D) - 1)),
+    #                                             name='symmetry_breaking_ds_constraints')
+
+    # Additional constraints
+    #    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
+    #                                    for t in t_set for i in N for d in D), name='dm_constraints')
     #    dm_constraints1 = m.addConstrs((quicksum(s_dit[d, i, t] for i in N) <= b_d[d]
     #                                    for t in t_set for d in D), name='dm_constraints1')
     #    dm_constraints2 = m.addConstrs((quicksum(x_da[d, i1, j1, t1] for (i1, j1, t1) in Aax[i, j, t]) +
@@ -266,18 +316,11 @@ def create_model(data):
     #                                    for (i, j, t) in A for d in D), name='dm_constraints2')
     #    dm_constraints3 = m.addConstrs((quicksum(y_da[d, i1, j1, t1] for (i1, j1, t1) in Aay[i, j, t]) <= b_d[d]
     #                                    for (i, j, t) in A for d in D), name='dm_constraints3')
-    # Create driver selection definition
-    driver_selection_definition = m.addConstrs(
-        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d] for d in D),
-        name='driver_selection_definition')
-
-    # Create driver selection symmetry breaking constraints
-    driver_selection_symmetry = m.addConstrs((b_d[D[i]] >= b_d[D[i + 1]] for i in range(len(D) - 1)),
-                                             name='driver_selection_symmetry')
 
     # Save model for inspection
     m.write('NFP.lp')
-    return (m)
+    return m
+
 
 now = datetime.now()
 # Get scenario data

@@ -30,7 +30,12 @@ x_vars  ={(i,j):opt_model.addVar(vtype=grb.GRB.INTEGER,
 for i in set_I for j in set_J}
 
 # <= constraints
-constraints = {j : opt_model.addConstr(lhs=grb.quicksum(a[i,j] * x_vars[i,j] for i in set_I), sense=grb.GRB.LESS_EQUAL, rhs=b[j], name="constraint_{0}".format(j)) for j in set_J}
+constraints = {j : opt_model.addConstr(
+    lhs=grb.quicksum(a[i,j] * x_vars[i,j] for i in set_I),
+    sense=grb.GRB.LESS_EQUAL,
+    rhs=b[j],
+    name="constraint_{0}".format(j))
+    for j in set_J}
 # >= constraints
 constraints = {j : opt_model.addConstr(
         lhs=grb.quicksum(a[i,j] *x_vars[i,j] for i in set_I),
