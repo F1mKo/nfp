@@ -192,6 +192,7 @@ def create_model(data):
     Akww = data['Arcs set']  # set of arcs, which belongs to the double week 𝑘
     t_set = data['time set']  # unique time set
     print('t_set', t_set)
+
     # Constants
     c_a = data['arc crew size']  # crew size on the arc 𝑎 ∈ 𝐴
     t_a = data['arcs service time']  # arcs service durations
@@ -200,37 +201,23 @@ def create_model(data):
     m = gp.Model('NFP')
 
     # Create decision variables for the NFP model
-    #    da = [(d, i, j, t) for (i, j, t) in A for d in D]
     x_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in D}
-    #    x_da = m.addVars(da, vtype=GRB.BINARY,
-    #                     name='x_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
+            for (i, j, t) in A for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
     y_da = {(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                    name="y_{0}_{1}_{2}_{3}".format(d, i, j, t))
-            for (i, j, t) in A for d in D}
-    #    y_da = m.addVars(da, vtype=GRB.BINARY,
-    #                    name='y_da')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
-    #    dit = [(d, i, t) for t in t_set for i in N for d in D]
+            for (i, j, t) in A for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
+
     s_dit = {(d, i, t): m.addVar(vtype=GRB.BINARY,
                                  name="s_{0}_{1}_{2}".format(d, i, t))
-             for t in t_set for i in N for d in D}
-    #    s_dit = m.addVars(dit, vtype=GRB.BINARY,
-    #                      name='s_dit')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
-    b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in D}
-    #    b_d = m.addVars(D, vtype=GRB.BINARY,
-    #                    name='b_d')  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
+             for t in t_set for i in N for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
+    b_d = {d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in D}  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
 
     # Create variables for convenient output
     work_d = {d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_work_duration".format(d)) for d in D}
-    #    work_d = m.addVars(D, vtype=GRB.CONTINUOUS, name='driver_work_duration')
 
     # Objective: maximize total matching score of all assignments
     m.setObjective(quicksum(b_d[i] for i in D), GRB.MINIMIZE)
-    #    A_cycle = copy.deepcopy(A)
-    #    A_cycle.append(A[0])
-    #    t_set_cycle = copy.deepcopy(t_set)
-    #    t_set_cycle.append(t_set[0])
 
     # Create constraints
     driver_movement = {(d, i, j, t):
@@ -241,17 +228,12 @@ def create_model(data):
                                        quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]),
                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
                        for (i, j, t) in A for d in D}
-    #    driver_movement = m.addConstrs(((s_dit[d, i, t] + x_da[d, i, j, t] + y_da[d, i, j, t] ==
-    #                                     quicksum(s_dit[d, i, t_set[k - 1]] for k in range(len(t_set)) if t_set[k] == t)
-    #                                     + quicksum((x_da[d, i1, j1, t1]) for (i1, j1, t1) in Aax[i, j, t]) +
-    #                                     quicksum((y_da[d, i2, j2, t2]) for (i2, j2, t2) in Aay[i, j, t]))
-    #                                    for (i, j, t) in A for d in D),
-    #                                   name='driver_movement')
 
     #    driver_movement1 = m.addConstrs((quicksum((x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1]) for (i1, j1, t1) in A if i1 == i) ==
     #                                     quicksum((x_da[d, i2, j2, t2] + y_da[d, i2, j2, t2]) for (i2, j2, t2) in A if j2 == i)
     #                                     for i in N for d in D),
     #                                    name='driver_movement1')
+
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = {d: m.addConstr(
@@ -264,47 +246,31 @@ def create_model(data):
                               for d in D}
 
     symmetry_breaking_wwd_constraints = {D[i]: m.addConstr(work_d[D[i + 1]] <= work_d[D[i]],
-                                                           name="driver_wwd_constraints_{0}".format(D[i]))
+                                                           name="symmetry_breaking_wwd_constraints_{0}".format(D[i]))
                                          for i in range(len(D) - 1)}
 
-    #    driver_weekly_work_duration = m.addConstrs(
-    #        (quicksum(t_a[i, j, t] * (x_da[d, i, j, t] + y_da[d, i, j, t]) for (i, j, t) in Akw) == work_d[d] for d in D),
-    #        name='driver_wwd_definition')
-    #    driver_wwd_constraints = m.addConstrs((work_d[d] <= 56 for d in D), name='driver_wwd_constraints')
-    #    symmetry_breaking_wwd_constraints = m.addConstrs((work_d[D[i + 1]] <= work_d[D[i]] for i in range(len(D) - 1)),
-    #                                                 name='symmetry_breaking_wwd_constraints')
 
     # Create crew size constraints
     crew_size_constraints = {
         (i, j, t): m.addConstr(quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for d in D) == c_a[i, j, t],
                                name="crew_size_constr_{0}_{1}_{2}".format(i, j, t))
         for (i, j, t) in A}
-    #    crew_size_constraints = m.addConstrs(
-    #        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for d in D) == c_a[i, j, t] for (i, j, t) in A),
-    #        name='crew_size_constr')
 
     # Create weekly rest constraints
     weekly_rest_constraints = {d: m.addConstr(quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d],
                                               name="weekly_rest_constraints_{0}".format(d))
                                for d in D}
-    #    weekly_rest_constraints = m.addConstrs((quicksum(y_da[d, i, j, t] for (i, j, t) in Akw) >= b_d[d] for d in D),
-    #                                           name='weekly_rest_constraints')
 
     #   Create driver selection definition
     driver_selection_definition = {
         d: m.addConstr(quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d],
                        name="driver_selection_definition_{0}".format(d))
         for d in D}
-    #    driver_selection_definition = m.addConstrs(
-    #        (quicksum(x_da[d, i, j, t] + y_da[d, i, j, t] for (i, j, t) in A) <= 10000 * b_d[d] for d in D),
-    #        name='driver_selection_definition')
 
     # Create driver selection symmetry breaking constraints
     symmetry_breaking_ds_constraints = {D[i]: m.addConstr(b_d[D[i]] >= b_d[D[i + 1]],
                                                           name="symmetry_breaking_ds_constraints_{0}".format(D[i]))
                                         for i in range(len(D) - 1)}
-    #    symmetry_breaking_ds_constraints = m.addConstrs((b_d[D[i]] >= b_d[D[i + 1]] for i in range(len(D) - 1)),
-    #                                             name='symmetry_breaking_ds_constraints')
 
     # Additional constraints
     #    dm_constraints = m.addConstrs((s_dit[d, i, t] + quicksum(x_da[d, i1, j1, t1] + y_da[d, i1, j1, t1] for (i1, j1, t1) in A if (t1 == t and i1 == i)) == b_d[d]
@@ -330,15 +296,15 @@ cycle_length = 7
 data = preprocessing(cur_case.values[0], cycle_length)
 
 # Declare and initialize model
-m = create_model(data)
+model = create_model(data)
 
 # Run optimization engine
-m.optimize()
-m.computeIIS()
-m.write("model.ilp")
+model.optimize()
+#model.computeIIS()
+#model.write("model.ilp")
 # Display optimal values of decision variables
 # print(m.getVars())
-for v in m.getVars():
+for v in model.getVars():
     if v.x > 1e-6:
         print(v.varName, v.x)
 
@@ -348,7 +314,7 @@ print('Total execution time', datetime.now() - now)
 # Display optimal total matching score
 # print('Total matching score: ', m.objVal)
 
-varInfo = [(v.varName.split('_')[1], v.varName.split('_')[-1], v.varName, v.X) for v in m.getVars() if v.X > 0]
+varInfo = [(v.varName.split('_')[1], v.varName.split('_')[-1], v.varName, v.X) for v in model.getVars() if v.X > 0]
 
 # Write to csv
 with open('model_out.csv', 'w') as myfile:
