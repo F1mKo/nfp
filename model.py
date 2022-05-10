@@ -102,7 +102,7 @@ def preprocessing(case, cycle_len):
     # arcs service durations
     t_a = arc_param(arcs, distances)
 
-    # plot_network(arcs, t_a)
+    plot_network(arcs, t_a)
 
     # unique time set
     t_set = set([item[2] for item in arcs])
@@ -313,9 +313,11 @@ print('Total execution time', datetime.now() - now)
 # Display optimal total matching score
 # print('Total matching score: ', m.objVal)
 
-varInfo = [(v.varName.split('_')[1], v.varName.split('_')[-1], v.varName, v.X) for v in model.getVars() if v.X > 0]
+Columns = ['Driver', 'i', 'time', 'variable', 'value']
+varInfo = [(v.varName.split('_')[1], v.varName.split('_')[2], v.varName.split('_')[-1], v.varName, v.X) for v in model.getVars() if (v.X > 0 and len(v.varName.split('_')) > 2)]
 
 # Write to csv
-with open('model_out.csv', 'w') as myfile:
-    wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+with open('model_out.csv', 'w') as my_file:
+    wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
+    wr.writerow(Columns)
     wr.writerows(varInfo)
