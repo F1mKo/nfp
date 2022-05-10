@@ -97,7 +97,7 @@ def preprocessing(case, cycle_len):
     arcs = arcs_creator(departures, distances, cycle_len)
 
     # crew size for each arc
-    arc_crew_size = arc_param(arcs, crew_size)
+    c_a = arc_param(arcs, crew_size)
 
     # arcs service durations
     t_a = arc_param(arcs, distances)
@@ -122,7 +122,7 @@ def preprocessing(case, cycle_len):
         'Akw set': arcs,  # set of arcs, which belongs to the week 𝑘
         'Akww set': arcs,  # set of arcs, which belongs to the double week 𝑘
         'time set': t_set,  # unique time set
-        'arc crew size': arc_crew_size,  # crew size on the arc 𝑎 ∈ 𝐴
+        'arc crew size': c_a,  # crew size on the arc 𝑎 ∈ 𝐴
         'arcs service time': t_a  # arcs service durations
     }
     return result
