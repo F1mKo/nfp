@@ -54,6 +54,7 @@ def plot_network(arcs, distances):
     fig = plt.figure()
     #    ax = plt.axes(projection='3d')
     ax = plt.axes()
+
     for a in arcs:
         ax.plot([a[0], a[1]], [a[2], a[2] + distances[a[0], a[1], a[2]] % 168], 'gray')
     # Data for three-dimensional scattered points
@@ -63,6 +64,8 @@ def plot_network(arcs, distances):
     #    ax.plot3D(xdata, ydata, zdata, 'gray')
     #    ax.plot(ydata, zdata, 'gray')
     #    ax.view_init(0, 90)
+    ax.set_xlabel('Nodes')
+    ax.set_ylabel('Time (hours)')
     plt.show()
 
 
@@ -289,7 +292,7 @@ def create_model(data):
 
 now = datetime.now()
 # Get scenario data
-df = get_database('C:/Users/F1mKo/PycharmProjects/gurobi_conda/scenarios.xlsx')
+df = get_database('scenarios.xlsx')
 cur_case = catch_case(df, '10733_1')
 cycle_length = 7
 case_data = preprocessing(cur_case.values[0], cycle_length)
