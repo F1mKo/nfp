@@ -133,3 +133,4 @@ dmypy.json
 /optimization_solution.csv
 /NFP.lp
 /model.ilp
+/nfp.sol
