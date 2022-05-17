@@ -1,5 +1,4 @@
 # Import packages
-import csv
 from itertools import islice
 from datetime import datetime
 
@@ -45,25 +44,14 @@ def process_case(database, scenario_id, cycle_len):
     return case
 
 
-def result_csv(model):
-    Columns = ['Driver', 'i', 'time', 'variable', 'value']
-    varInfo = [(v.varName.split('_')[1], v.varName.split('_')[2], v.varName.split('_')[-1], v.varName, v.X) for v in
-               model.getVars() if (v.X > 0 and len(v.varName.split('_')) > 2)]
-
-    # Write to csv
-    with open('model_out.csv', 'w') as my_file:
-        wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
-        wr.writerow(Columns)
-        wr.writerows(varInfo)
-
 
 now = datetime.now()
 # Get scenario data
 df = get_database('scenarios.xlsx')
 scenario_number = '10733_1'
 cycle_length = 7
-case = process_case(df, scenario_number, cycle_length)
-
+#case = process_case(df, scenario_number, cycle_length)
+case = [[7, 12, 8], [1, 1, 1], 7, 7, 7]
 result = run_model(case)
 
 #nfp = NFPmodel(cur_case, cycle_length)

@@ -131,6 +131,6 @@ dmypy.json
 /scenarios.xlsx
 /model_out.csv
 /optimization_solution.csv
-/NFP.lp
+/nfp.lp
 /model.ilp
 /nfp.sol

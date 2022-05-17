@@ -3,6 +3,7 @@ import gurobipy as gp
 from gurobipy import Model, tuplelist, tupledict, GRB, quicksum
 import grblogtools
 import matplotlib.pyplot as plt
+import csv
 
 
 class ModelData:
@@ -20,7 +21,7 @@ class ModelData:
         # generate nodes set N
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
         # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, self.n ** 2))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 3 * self.n))  # set of drivers
         self.cycle_length = case[4]
         self.time_limit = self.cycle_length * 24
 
@@ -114,14 +115,14 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
     driver_movement = tupledict({(d, i, t): m.addConstr(v.s_dit[d, i, t] + quicksum(
                                          (quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax_inv[ik, jk, tk]) +
                                           quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay_inv[ik, jk, tk]))
-                                         for (ik, jk, tk) in data.arcs_dep if jk == i and tk == t)
+                                         for (ik, jk, tk) in data.arcs_dep if ik == i and tk == t)
                                                  == quicksum(
                                          v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
                                          data.t_set[k] == t)
                                                  + quicksum(
                                          (quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[ik, jk, tk]) +
                                           quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[ik, jk, tk]))
-                                         for (ik, jk, tk) in data.arcs_dep if ik == i and tk == t),
+                                         for (ik, jk, tk) in data.arcs_dep if jk == i and tk == t),
                                                  name="driver_movement_{0}_{1}_{2}".format(d, i, t))
                                  for d in data.drivers for i in data.nodes for t in data.t_set})
 
@@ -178,8 +179,20 @@ def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
         for i in range(len(data.drivers) - 1)}
 
 
-def add_objective(m: Model, v: ModelVars):
-    m.setObjective(v.b_d.sum(), GRB.MINIMIZE)
+def add_objective(m: Model, data: ModelData, v: ModelVars):
+    m.setObjective(quicksum(v.b_d[i] for i in data.drivers), GRB.MINIMIZE)
+
+
+def result_csv(m: Model):
+    columns = ['Driver', 'i', 'time', 'variable', 'value']
+    varInfo = [(v.varName.split('_')[1], v.varName.split('_')[2], v.varName.split('_')[-1], v.varName, v.X) for v in
+               m.getVars() if (v.X > 0 and len(v.varName.split('_')) > 2)]
+
+    # Write to csv
+    with open('model_out.csv', 'w') as my_file:
+        wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
+        wr.writerow(columns)
+        wr.writerows(varInfo)
 
 
 def run_model(case):
@@ -191,7 +204,7 @@ def run_model(case):
     add_variables(m, data, v)
     add_constraints(m, data, v)
     add_symmetry_breaking_constr(m, data, v)
-    add_objective(m, v)
+    add_objective(m, data, v)
 
     m.setParam('Heuristics', 0.5)
     m.setParam('MIPFocus', 1)
@@ -199,14 +212,15 @@ def run_model(case):
 
     # m.setParam('SolutionLimit', 1)
     m.update()
+    m.write('nfp.lp')
     #m.read('nfp.sol')
     # m.computeIIS()
     # m.write('inf.ilp')
     m.optimize()
-    m.write('nfp.lp')
     m.write('nfp.sol')
-    v.write_values()
-    return v
+#    v.write_values()
+    result_csv(m)
+    return m
 
 
 def arc_param(arcs, param):
