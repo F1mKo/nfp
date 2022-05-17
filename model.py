@@ -87,10 +87,6 @@ class ModelVars:
         self.b_d = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
         self.work_d = tupledict()  # driver total work duration
 
-    def write_values(self):
-        for attr in tuple(vars(self)):
-            if not attr.startswith("__"):
-                setattr(self, attr, {key: val.X for (key, val) in getattr(self, attr).items()})
 
 
 def add_variables(m: Model, data: ModelData, v: ModelVars):
@@ -212,12 +208,10 @@ def run_model(case):
 
     m.update()
     m.write('nfp.lp')
-    #m.read('nfp.sol')
     # m.computeIIS()
     # m.write('inf.ilp')
     m.optimize()
     m.write('nfp.sol')
-#    v.write_values()
     result_csv(m)
     return m
 
