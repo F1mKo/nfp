@@ -1,7 +1,4 @@
-# Import packages
-import gurobipy as gp
 from gurobipy import Model, tuplelist, tupledict, GRB, quicksum
-import grblogtools
 import matplotlib.pyplot as plt
 import csv
 
@@ -77,7 +74,7 @@ class ModelData:
                 arcs_arr += temp[1]
         else:
             arcs_dep, arcs_arr = route_sim(self.departures, self.distances, self.cycle_length)
-        #    arcs_dep = sorted(arcs_dep, key=lambda item: item[2])
+        # arcs_dep = sorted(arcs_dep, key=lambda item: item[2])
         # print(arcs_dep)
         return tuplelist(arcs_dep), tuplelist(arcs_arr)
 
@@ -209,8 +206,10 @@ def run_model(case):
     m.setParam('Heuristics', 0.5)
     m.setParam('MIPFocus', 1)
     m.setParam('Threads', 8)
-
+    m.setParam('MIPGap', 0.1)
+    m.setParam('Timelimit', 1000)
     # m.setParam('SolutionLimit', 1)
+
     m.update()
     m.write('nfp.lp')
     #m.read('nfp.sol')
