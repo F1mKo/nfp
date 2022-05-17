@@ -9,14 +9,12 @@ def split_data(data):
 
 def process_case(database, scenario_id, cycle_len):
     case = database[database.index.isin([scenario_id])].values.tolist()[0]
-    print(case)
     for i in range(len(case)):
         if str(case[i]).isdigit():
             case[i] = int(case[i])
         else:
             case[i] = split_data(case[i])
     case.append(cycle_len)
-    print(case)
     return case
 
 
