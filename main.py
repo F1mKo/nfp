@@ -23,7 +23,7 @@ def process_case(database, scenario_id, cycle_len):
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
           'scenario_number': '10733_1',
-          'cycle_length': 7}  # вынес файлы наружу.
+          'cycle_length': 7}  # settings
 
 
 def parse_data(input_file, sheet_name):
@@ -32,10 +32,9 @@ def parse_data(input_file, sheet_name):
         df.set_index('ID', inplace=True)
         return df
 
+
 now = datetime.now()
-# Get scenario data
 df = parse_data(config['input_file'], config['sheet_name'])
-#print(df)
 case = process_case(df, config['scenario_number'], config['cycle_length'])
 #case = [[7, 12, 8], [1, 1, 1], 7, 7, 7]
 result = run_model(case)
