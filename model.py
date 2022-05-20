@@ -4,25 +4,39 @@ import csv
 
 
 class ModelData:
-    def __init__(self, case):
-        # distances between nodes i and i+1
-        self.distances = tuplelist(case[0])
+    def __init__(self, case_db, config):
+        """
+        ModelData --- class for data processing. It's used in model definition.
+        :param case_db: scenarios database
+        :param config:  run configurations
+        """
+        # catch the case run parameters
+        self.case_id = config['scenario_number']
+        self.cycle_length = config['cycle_length']
+
+        # calculation of time horizon length corresponding to cycle length
+        self.time_limit = self.cycle_length * 24
+
+        # catch distances between nodes i and i+1
+        self.distances = self.cell_reader(case_db, 'Участки')
+
+        # calculation of total road fragments amount
         self.n = len(self.distances)
 
-        # get crew size values
-        self.crew_size = tuplelist(case[1])
-
-        # forward/backward departure data
-        self.departures = [case[2], case[3]]
+        # catch crew size values
+        self.crew_size = self.cell_reader(case_db, 'Водители')
 
         # generate nodes set N
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
+
         # generate drivers set D
         self.drivers = tuplelist(d for d in range(0, 3 * self.n))  # set of drivers
-        self.cycle_length = case[4]
-        self.time_limit = self.cycle_length * 24
 
-        # forward/backward Arc matrix with departure and arriving info
+        # catch forward/backward departure data
+        self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
+                                    self.cell_reader(case_db, 'Выезды обратно')]
+
+        # generate forward/backward Arc matrix with departure and arriving info
         self.arcs_dep, self.arcs_arr = self.arcs_creator()  # set of arcs (works) to be served
 
         # crew size for each arc
@@ -56,6 +70,10 @@ class ModelData:
         self.Akww = self.arcs_dep  # set of arcs, which belongs to the double week 𝑘
 
     def plot_network(self):
+        """
+        Arc network plotting function. Shows the generated Arcs set on the timeline.
+        :return: None
+        """
         ax = plt.axes()
         for a in self.arcs_dep:
             ax.plot([a[0], a[1]], [a[2], (a[2] + self.distances[min(a[0], a[1])]) % self.time_limit], 'blue')
@@ -64,9 +82,15 @@ class ModelData:
         plt.show()
 
     def arcs_creator(self):
-        # Generate forward/backward Arc matrix
-        arcs_dep = []
-        arcs_arr = []
+        """
+        Generate forward/backward Arc matrix
+        :return:
+            tuplelist(arcs_dep) --- main arcs set with departure times
+            tuplelist(arcs_arr) --- additional arcs set with arrival times to simplify calculations
+            in closest arrive function
+        """
+        arcs_dep = [] #
+        arcs_arr = [] #
         if isinstance(self.departures[0], list) and isinstance(self.departures[1], list):
             for cur_deps in zip(self.departures[0], self.departures[1]):
                 temp = route_sim(cur_deps, self.distances, self.cycle_length)
@@ -78,9 +102,38 @@ class ModelData:
         # print(arcs_dep)
         return tuplelist(arcs_dep), tuplelist(arcs_arr)
 
+    def cell_reader(self, case_db, cell_name):
+        """
+        Catches the cell_name values in case_db
+        :param case_db: scenarios database
+        :param cell_name: cell column name
+        :return:
+            tuplelist(result) if result is array
+            result if result is number
+        """
+        result, type = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
+        print(result, type)
+        return tuplelist(result) if type == 'array' else result
+
+    @staticmethod
+    def split_data(data):
+        """
+        Checks data structure of cell
+        :param data: data from the database cell
+        :return:
+            number if cell contains only one number
+            array if cell contains more than one number
+        """
+        if str(data).isdigit():
+            return int(data), 'number'
+        else:
+            return [int(i) for i in data.split(';')], 'array'
 
 class ModelVars:
     def __init__(self):
+        """
+        ModelVars --- class for variable definition. It stores all variables for convenient use in model.
+        """
         self.x_da = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴, 0 otherwise
         self.y_da = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
         self.s_dit = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
@@ -88,44 +141,47 @@ class ModelVars:
         self.work_d = tupledict()  # driver total work duration
 
 
-
 def add_variables(m: Model, data: ModelData, v: ModelVars):
+    """
+    Defines variables in model according to data.
+    :param m: Model class instance
+    :param data: ModelData class instance
+    :param v: ModelVars class instance
+    :return: None
+    """
     v.x_da = tupledict({(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                                name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
                         for d in data.drivers for (i, j, t) in data.arcs_dep})
+
     v.y_da = tupledict({(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                                name="y_{0}_{1}_{2}_{3}".format(d, i, j, t))
                         for d in data.drivers for (i, j, t) in data.arcs_dep})
+
     v.s_dit = tupledict({(d, i, t): m.addVar(vtype=GRB.BINARY,
                                              name="s_{0}_{1}_{2}".format(d, i, t))
                          for d in data.drivers for i in data.nodes for t in data.t_set})
+
     v.b_d = tupledict({d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in data.drivers})
+
     v.work_d = tupledict({d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_work_duration".format(d)) for d in
                           data.drivers})
 
 
 def add_constraints(m: Model, data: ModelData, v: ModelVars):
-    driver_movement = tupledict({(d, i, t): m.addConstr(v.s_dit[d, i, t] + quicksum(
-                                         (quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax_inv[ik, jk, tk]) +
-                                          quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay_inv[ik, jk, tk]))
-                                         for (ik, jk, tk) in data.arcs_dep if ik == i and tk == t)
-                                                 == quicksum(
-                                         v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
-                                         data.t_set[k] == t)
-                                                 + quicksum(
-                                         (quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[ik, jk, tk]) +
-                                          quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[ik, jk, tk]))
-                                         for (ik, jk, tk) in data.arcs_dep if jk == i and tk == t),
-                                                 name="driver_movement_{0}_{1}_{2}".format(d, i, t))
-                                 for d in data.drivers for i in data.nodes for t in data.t_set})
-
-#    driver_movement1 = tupledict({(d, i, j, t):
-#                            m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
-#                                v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if data.t_set[k] == t)
-#                                        + quicksum((v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
-#                                        quicksum((v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
-#                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
-#                        for d in data.drivers for (i, j, t) in data.arcs_dep})
+    """
+    Defines a constraints block for model according to data
+    :param m: Model class instance
+    :param data: ModelData class instance
+    :param v: ModelVars class instance
+    :return: None
+    """
+    driver_movement = tupledict({(d, i, j, t):
+                            m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
+                                v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if data.t_set[k] == t)
+                                        + quicksum((v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
+                                        quicksum((v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
+                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                        for d in data.drivers for (i, j, t) in data.arcs_dep})
 
     # Driver weekly work time definition and constraints
     driver_weekly_work_duration = tupledict({d: m.addConstr(
@@ -158,6 +214,13 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
 
 
 def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
+    """
+    Defines an additional symmetry breaking constraints block for model according to data
+    :param m: Model class instance
+    :param data: ModelData class instance
+    :param v: ModelVars class instance
+    :return: None
+    """
     # Create driver work_time symmetry breaking constraints
     symmetry_breaking_wwd_constraints = {
         data.drivers[i]: m.addConstr(v.work_d[data.drivers[i + 1]] <= v.work_d[data.drivers[i]],
@@ -173,10 +236,22 @@ def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
 
 
 def add_objective(m: Model, data: ModelData, v: ModelVars):
+    """
+    Defines an objective function for model
+    :param m: Model class instance
+    :param data: ModelData class instance
+    :param v: ModelVars class instance
+    :return: None
+    """
     m.setObjective(quicksum(v.b_d[i] for i in data.drivers), GRB.MINIMIZE)
 
 
 def result_csv(m: Model):
+    """
+    Catches variables values from model optimization results. Creates a csv-type file with determined columns
+    :param m: Model class instance
+    :return: None
+    """
     columns = ['Driver', 'i', 'time', 'variable', 'value']
     varInfo = [(v.varName.split('_')[1], v.varName.split('_')[2], v.varName.split('_')[-1], v.varName, v.X) for v in
                m.getVars() if (v.X > 0 and len(v.varName.split('_')) > 2)]
@@ -188,10 +263,17 @@ def result_csv(m: Model):
         wr.writerows(varInfo)
 
 
-def run_model(case):
+def run_model(case, config):
+    """
+    Creates ModelData, ModelVars, Model instances to define and solve the model
+    :param case_db: scenarios database
+    :param config:  run configurations
+    :return:
+        model instance
+    """
     # Declare and initialize model
     m = Model('NFP')
-    data = ModelData(case)
+    data = ModelData(case, config)
     v = ModelVars()
 
     add_variables(m, data, v)
@@ -199,19 +281,25 @@ def run_model(case):
     add_symmetry_breaking_constr(m, data, v)
     add_objective(m, data, v)
 
-    m.setParam('Heuristics', 0.5)
-    m.setParam('MIPFocus', 1)
-    m.setParam('Threads', 8)
-    m.setParam('MIPGap', 0.1)
+    # Some model preferences to setup
+    #m.setParam('Heuristics', 0.5)
+    #m.setParam('MIPFocus', 1)
+    #m.setParam('Threads', 12)
+    # m.setParam('MIPGap', 0.1)
     m.setParam('Timelimit', 1000)
     # m.setParam('SolutionLimit', 1)
-
     m.update()
+
+    # save the defined model in .lp format
     m.write('nfp.lp')
-    # m.computeIIS()
-    # m.write('inf.ilp')
+    #m.computeIIS()
+    #m.write('inf.ilp')
     m.optimize()
+
+    # save the solution output
     m.write('nfp.sol')
+
+    # write a csv file
     result_csv(m)
     return m
 

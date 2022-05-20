@@ -3,20 +3,6 @@ import pandas as pd
 from model import run_model
 
 
-def split_data(data):
-    return [int(i) for i in data.split(';')]
-
-
-def process_case(database, scenario_id, cycle_len):
-    case = database[database.index.isin([scenario_id])].values.tolist()[0]
-    for i in range(len(case)):
-        if str(case[i]).isdigit():
-            case[i] = int(case[i])
-        else:
-            case[i] = split_data(case[i])
-    case.append(cycle_len)
-    return case
-
 
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
@@ -33,9 +19,8 @@ def parse_data(input_file, sheet_name):
 
 now = datetime.now()
 df = parse_data(config['input_file'], config['sheet_name'])
-case = process_case(df, config['scenario_number'], config['cycle_length'])
-#case = [[7, 12, 8], [1, 1, 1], 7, 7, 7]
-result = run_model(case)
+print(df)
+result = run_model(df, config)
 print('Total execution time', datetime.now() - now)
 
 
