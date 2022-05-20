@@ -15,7 +15,14 @@ class ModelData:
         self.cycle_length = config['cycle_length']
 
         # calculation of time horizon length corresponding to cycle length
-        self.time_limit = self.cycle_length * 24
+        self.n_weeks = self.cycle_length // 7
+        if self.n_weeks > 1:
+            self.week_num = tuplelist(range(self.n_weeks))
+            self.time_limit = tuplelist(
+                [((i + 1) / self.n_weeks) * 24 * self.cycle_length for i in self.week_num])
+        else:
+            self.week_num = 0
+            self.time_limit = 24 * self.cycle_length
 
         # catch distances between nodes i and i+1
         self.distances = self.cell_reader(case_db, 'Участки')
@@ -30,14 +37,14 @@ class ModelData:
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
 
         # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, 3 * self.n))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 4 * self.n))  # set of drivers
 
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
-                                    self.cell_reader(case_db, 'Выезды обратно')]
+                           self.cell_reader(case_db, 'Выезды обратно')]
 
         # generate forward/backward Arc matrix with departure and arriving info
-        self.arcs_dep, self.arcs_arr = self.arcs_creator()  # set of arcs (works) to be served
+        self.arcs_dep, self.arcs_arr = self.arcs_network_creator()  # set of arcs (works) to be served
 
         # crew size for each arc
         self.c_a = arc_param(self.arcs_dep, self.crew_size)
@@ -53,35 +60,55 @@ class ModelData:
 
         # A_a_x and A_a_y set
         self.Aax = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.time_limit)
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, max(self.time_limit))
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with daily rest
         self.Aay = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.time_limit)
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, max(self.time_limit))
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
         self.Aax_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.time_limit)
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), max(self.time_limit))
             for (i, j, t) in self.arcs_dep})
         self.Aay_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.time_limit)
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), max(self.time_limit))
             for (i, j, t) in self.arcs_dep})
-        self.Akw = self.arcs_dep  # set of arcs, which belongs to the week 𝑘
-        self.Akww = self.arcs_dep  # set of arcs, which belongs to the double week 𝑘
+        self.Akw = self.arcs_week_subset(week='single')
+        self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
+
+    def arcs_week_subset(self, week='single'):
+        """
+        get arc service time according to the week
+        :param week: rule of arcs subset definition
+        :return: set of arcs, which belongs to the week 𝑘 (𝑘 =[0, 1] for 'single' week, k=0 for 'double')
+        """
+        result = {}
+        if week == 'single' and self.n_weeks > 1:
+            for k in self.week_num:
+                for (i, j, t) in self.arcs_dep:
+                    if t < self.time_limit[k] and (k == 0 or self.time_limit[k - 1] < t):
+                        result[k, i, j, t] = (self.time_limit[k] - t
+                                              if t + self.t_a[i, j, t] > self.time_limit[k] else self.t_a[i, j, t])
+                        if t + self.t_a[i, j, t] > self.time_limit[k]:
+                            result[self.week_num[k - 1], i, j, t] = t + self.t_a[i, j, t] - self.time_limit[k]
+        else:
+            result = {(0, i, j, t): self.t_a[i, j, t] for (i, j, t) in self.arcs_dep}
+        return tupledict(result)
 
     def plot_network(self):
         """
         Arc network plotting function. Shows the generated Arcs set on the timeline.
         :return: None
         """
+        time_horizon = max(self.time_limit)
         ax = plt.axes()
         for a in self.arcs_dep:
-            ax.plot([a[0], a[1]], [a[2], (a[2] + self.distances[min(a[0], a[1])]) % self.time_limit], 'blue')
+            ax.plot([a[0], a[1]], [a[2], (a[2] + self.distances[min(a[0], a[1])]) % time_horizon], 'blue')
         ax.set_xlabel('Nodes')
         ax.set_ylabel('Time (hours)')
         plt.show()
 
-    def arcs_creator(self):
+    def arcs_network_creator(self):
         """
         Generate forward/backward Arc matrix
         :return:
@@ -89,8 +116,8 @@ class ModelData:
             tuplelist(arcs_arr) --- additional arcs set with arrival times to simplify calculations
             in closest arrive function
         """
-        arcs_dep = [] #
-        arcs_arr = [] #
+        arcs_dep = []
+        arcs_arr = []
         if isinstance(self.departures[0], list) and isinstance(self.departures[1], list):
             for cur_deps in zip(self.departures[0], self.departures[1]):
                 temp = route_sim(cur_deps, self.distances, self.cycle_length)
@@ -111,9 +138,8 @@ class ModelData:
             tuplelist(result) if result is array
             result if result is number
         """
-        result, type = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
-        print(result, type)
-        return tuplelist(result) if type == 'array' else result
+        result, var_type = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
+        return tuplelist(result) if var_type == 'array' else result
 
     @staticmethod
     def split_data(data):
@@ -139,7 +165,8 @@ class ModelVars:
         self.y_da = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
         self.s_dit = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
         self.b_d = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
-        self.work_d = tupledict()  # driver total work duration
+        self.w_work_d = tupledict()  # driver weekly work duration
+        self.ww_work_d = tupledict()  # driver double week work duration
 
 
 def add_variables(m: Model, data: ModelData, v: ModelVars):
@@ -164,8 +191,18 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
 
     v.b_d = tupledict({d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in data.drivers})
 
-    v.work_d = tupledict({d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_work_duration".format(d)) for d in
-                          data.drivers})
+    if data.n_weeks > 1:
+        v.w_work_d = tupledict(
+            {(k, d): m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_{1}_weekly_work_duration".format(k, d)) for d in
+             data.drivers for k in data.week_num})
+
+        v.ww_work_d = tupledict(
+            {d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_double_week_work_duration".format(d)) for d in
+             data.drivers})
+    else:
+        v.w_work_d = tupledict(
+            {(0, d): m.addVar(vtype=GRB.CONTINUOUS, name="driver_0_{0}_weekly_work_duration".format(d)) for d in
+             data.drivers})
 
 
 def add_constraints(m: Model, data: ModelData, v: ModelVars):
@@ -178,22 +215,49 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
     """
     # Driver movement definition
     driver_movement = tupledict({(d, i, j, t):
-                            m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
-                                v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if data.t_set[k] == t)
-                                        + quicksum((v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
-                                        quicksum((v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
-                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
-                        for d in data.drivers for (i, j, t) in data.arcs_dep})
+                                     m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
+                                         v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
+                                         data.t_set[k] == t)
+                                                 + quicksum(
+                                         (v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
+                                                 quicksum(
+                                                     (v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
+                                                 name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                                 for d in data.drivers for (i, j, t) in data.arcs_dep})
 
     # Driver weekly work time definition and constraints
-    driver_weekly_work_duration = tupledict({d: m.addConstr(
-        quicksum(data.t_a[i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (i, j, t) in data.Akw) == v.work_d[d],
-        name="driver_wwd_definition_{0}".format(d))
-        for d in data.drivers})
+    if data.n_weeks > 1:
+        driver_weekly_work_duration = tupledict({d: m.addConstr(
+            quicksum(data.Akw[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akw if
+                     k == ki) == v.w_work_d[ki,
+                                            d],
+            name="driver_w_wd_definition_{0}_{1}".format(ki, d))
+            for d in data.drivers for ki in data.week_num})
 
-    driver_wwd_constraints = tupledict({d: m.addConstr(v.work_d[d] <= 56,
-                                                       name="driver_wwd_constraints_{0}".format(d)) for d in
-                                        data.drivers})
+        driver_2weekly_work_duration = tupledict({d: m.addConstr(
+            quicksum(data.Akww[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akww) ==
+            v.ww_work_d[
+                d],
+            name="driver_2w_wd_definition_{0}".format(d))
+            for d in data.drivers for ki in data.week_num})
+
+        driver_w_wd_constraints = tupledict({(k, d): m.addConstr(v.w_work_d[k, d] <= 56,
+                                                                 name="driver_w_wd_constraints_{0}_{1}".format(k, d))
+                                             for (k, d) in v.w_work_d})
+
+        driver_ww_wd_constraints = tupledict({d: m.addConstr(v.ww_work_d[d] <= 90,
+                                                             name="driver_2w_wd_constraints_{0}".format(d))
+                                              for d in data.drivers})
+
+    else:
+        driver_weekly_work_duration = tupledict({d: m.addConstr(
+            quicksum(data.Akw[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akw) ==
+            v.w_work_d[0, d], name="driver_w_wd_definition_0_{0}".format(d))
+            for d in data.drivers})
+
+        driver_w_wd_constraints = tupledict({d: m.addConstr(v.w_work_d[0, d] <= 56,
+                                                            name="driver_w_wd_constraints_{0}".format(d))
+                                             for d in data.drivers})
 
     # Create crew size constraints
     crew_size_constraints = tupledict({
@@ -203,11 +267,16 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
         for (i, j, t) in data.arcs_dep})
 
     # Create weekly rest constraints
-    weekly_rest_constraints = tupledict(
-        {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (i, j, t) in data.Akw) >= v.b_d[d],
-                        name="weekly_rest_constraints_{0}".format(d)) for d in
-         data.drivers})
-
+    if data.n_weeks > 1:
+        weekly_rest_constraints = tupledict(
+            {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw if k == ki) >= v.b_d[d],
+                            name="weekly_rest_constraints_{0}".format(d)) for d in
+             data.drivers for ki in data.week_num})
+    else:
+        weekly_rest_constraints = tupledict(
+            {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw) >= v.b_d[d],
+                            name="weekly_rest_constraints_{0}".format(d)) for d in
+             data.drivers})
     #   Create driver selection definition
     driver_selection_definition = tupledict({d: m.addConstr(
         quicksum(v.x_da[d, i, j, t] + v.y_da[d, i, j, t] for (i, j, t) in data.arcs_dep) <= 10000 * v.b_d[d],
@@ -224,11 +293,11 @@ def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
     :return: None
     """
     # Create driver work_time symmetry breaking constraints
-    symmetry_breaking_wwd_constraints = {
-        data.drivers[i]: m.addConstr(v.work_d[data.drivers[i + 1]] <= v.work_d[data.drivers[i]],
-                                     name="symmetry_breaking_wwd_constraints_{0}".format(
-                                         data.drivers[i]))
-        for i in range(len(data.drivers) - 1)}
+    # symmetry_breaking_wwd_constraints = {
+    #     data.drivers[i]: m.addConstr(v.work_d[data.drivers[i + 1]] <= v.work_d[data.drivers[i]],
+    #                                  name="symmetry_breaking_wwd_constraints_{0}".format(
+    #                                      data.drivers[i]))
+    #     for i in range(len(data.drivers) - 1)}
     # Create driver selection symmetry breaking constraints
     symmetry_breaking_ds_constraints = {
         data.drivers[i]: m.addConstr(v.b_d[data.drivers[i]] >= v.b_d[data.drivers[i + 1]],
@@ -294,15 +363,21 @@ def run_model(case, config):
 
     # save the defined model in .lp format
     m.write('nfp.lp')
-    # m.computeIIS()
-    # m.write('inf.ilp')
     m.optimize()
 
-    # save the solution output
-    m.write('nfp.sol')
+    if m.Status == GRB.OPTIMAL:
+        print('Optimal objective: %g' % m.ObjVal)
+        # save the solution output
+        m.write('nfp.sol')
+        # write a csv file
+        result_csv(m)
+        return m
+    elif m.Status != GRB.INFEASIBLE:
+        print('Optimization was stopped with status %d' % m.Status)
+        return m
 
-    # write a csv file
-    result_csv(m)
+    m.computeIIS()
+    m.write('inf.ilp')
     return m
 
 

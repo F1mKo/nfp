@@ -3,7 +3,6 @@ import pandas as pd
 from model import run_model
 
 
-
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
           'scenario_number': '10733_1',
@@ -19,7 +18,6 @@ def parse_data(input_file, sheet_name):
 
 now = datetime.now()
 df = parse_data(config['input_file'], config['sheet_name'])
-print(df)
 result = run_model(df, config)
 print('Total execution time', datetime.now() - now)
 
