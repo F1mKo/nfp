@@ -129,6 +129,7 @@ class ModelData:
         else:
             return [int(i) for i in data.split(';')], 'array'
 
+
 class ModelVars:
     def __init__(self):
         """
@@ -175,6 +176,7 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
     :param v: ModelVars class instance
     :return: None
     """
+    # Driver movement definition
     driver_movement = tupledict({(d, i, j, t):
                             m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
                                 v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if data.t_set[k] == t)
@@ -282,9 +284,9 @@ def run_model(case, config):
     add_objective(m, data, v)
 
     # Some model preferences to setup
-    #m.setParam('Heuristics', 0.5)
-    #m.setParam('MIPFocus', 1)
-    #m.setParam('Threads', 12)
+    # m.setParam('Heuristics', 0.5)
+    # m.setParam('MIPFocus', 1)
+    # m.setParam('Threads', 12)
     # m.setParam('MIPGap', 0.1)
     m.setParam('Timelimit', 1000)
     # m.setParam('SolutionLimit', 1)
@@ -292,8 +294,8 @@ def run_model(case, config):
 
     # save the defined model in .lp format
     m.write('nfp.lp')
-    #m.computeIIS()
-    #m.write('inf.ilp')
+    # m.computeIIS()
+    # m.write('inf.ilp')
     m.optimize()
 
     # save the solution output
