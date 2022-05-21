@@ -21,9 +21,11 @@ class ModelData:
             self.week_num = tuplelist(range(self.n_weeks))
             self.time_limit = tuplelist(
                 [((i + 1) / self.n_weeks) * 24 * self.cycle_length for i in self.week_num])
+            self.time_horizon = self.time_limit[-1]
         else:
             self.week_num = 0
             self.time_limit = 24 * self.cycle_length
+            self.time_horizon = 24 * self.cycle_length
 
         # catch distances between nodes i and i+1
         self.distances = self.cell_reader(case_db, 'Участки')
@@ -38,7 +40,8 @@ class ModelData:
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
 
         # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, 4 * self.n))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 5 * self.n)) if self.n >= 3 else \
+            tuplelist(d for d in range(0, 3 * self.n ** 2)) # set of drivers
 
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
@@ -59,21 +62,30 @@ class ModelData:
 
         # A_a_x and A_a_y set
         self.Aax = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.get_last_elem(self.time_limit))
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.time_horizon)
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with daily rest
         self.Aay = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.get_last_elem(self.time_limit))
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.time_horizon)
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
         self.Aax_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.get_last_elem(self.time_limit))
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.time_horizon)
             for (i, j, t) in self.arcs_dep})
         self.Aay_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.get_last_elem(self.time_limit))
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.time_horizon)
             for (i, j, t) in self.arcs_dep})
         self.Akw = self.arcs_week_subset(week='single')
         self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
+        self.Ax = tupledict(
+            {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 11, self.time_horizon)
+             for i in
+             self.nodes for t in self.t_set})  # set of arcs with the closest arrival time to departure arc a with daily rest
+        self.Ay = tupledict(
+            {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 24, self.time_horizon)
+             for i in
+             self.nodes for t in self.t_set})  # set of arcs with the closest arrival time to departure arc a with weekly rest
+
 
     def arcs_week_subset(self, week='single'):
         """
@@ -127,6 +139,7 @@ class ModelData:
         result, var_type = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
         return tuplelist(result) if var_type == 'array' else result
 
+    '''
     @staticmethod
     def get_last_elem(parameter):
         """
@@ -135,7 +148,8 @@ class ModelData:
         :return:
         """
         return parameter if isinstance(parameter, int) else parameter[-1]
-
+        
+    '''
     @staticmethod
     def split_data(data):
         """
@@ -210,16 +224,30 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
     :return: None
     """
     # Driver movement definition
-    driver_movement = tupledict({(d, i, j, t):
-                                     m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
-                                         v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
-                                         data.t_set[k] == t)
-                                                 + quicksum(
-                                         (v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
+    # driver_movement = tupledict({(d, i, j, t):
+    #                                 m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
+    #                                     v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
+    #                                     data.t_set[k] == t)
+    #                                             + quicksum(
+    #                                     (v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
+    #                                             quicksum(
+    #                                                 (v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
+    #                                             name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
+    #                             for d in data.drivers for (i, j, t) in data.arcs_dep})
+
+    driver_movement1 = tupledict({(d, i, t):
+                                     m.addConstr(v.s_dit[d, i, t] + quicksum(v.x_da[d, ik, jk, tk] +
+                                                                             v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
+                                                                             data.arcs_dep if ik == i and tk == t) ==
                                                  quicksum(
-                                                     (v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
-                                                 name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
-                                 for d in data.drivers for (i, j, t) in data.arcs_dep})
+                                                     v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
+                                                     data.t_set[k] == t)
+                                                 + quicksum(
+                                         v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Ax[i, t]) +
+                                                 quicksum(
+                                                     v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Ay[i, t]),
+                                                 name="driver_movement_{0}_{1}_{2}".format(d, i, t))
+                                 for d in data.drivers for i in data.nodes for t in data.t_set})
 
     # Driver weekly work time definition and constraints
     if data.n_weeks > 1:
@@ -361,58 +389,6 @@ def get_var_values(m: Model):
     return result
 
 
-def run_model(case, config):
-    """
-    Creates ModelData, ModelVars, Model instances to define and solve the model
-    :param case_db: scenarios database
-    :param config:  run configurations
-    :return:
-        model instance
-    """
-    random.seed(0)
-    # Declare and initialize model
-    m = Model('NFP')
-    data = ModelData(case, config)
-    time_horizon = data.get_last_elem(data.time_limit)
-    plot_network(data.arcs_dep, data.distances, time_horizon)
-    v = ModelVars()
-
-    add_variables(m, data, v)
-    add_constraints(m, data, v)
-    add_symmetry_breaking_constr(m, data, v)
-    add_objective(m, data, v)
-
-    # Some model preferences to setup
-    # m.setParam('Heuristics', 0.5)
-    # m.setParam('MIPFocus', 1)
-    # m.setParam('Threads', 12)
-    # m.setParam('MIPGap', 0.1)
-    m.setParam('Timelimit', 1000)
-    # m.setParam('SolutionLimit', 1)
-    m.update()
-
-    # save the defined model in .lp format
-    m.write('nfp.lp')
-    m.optimize()
-
-    if m.Status == GRB.OPTIMAL:
-        print('Optimal objective: %g' % m.ObjVal)
-        # save the solution output
-        m.write('nfp.sol')
-        # write a csv file
-        results = result_csv(m)
-        arc2driver = get_driver_route(results, int(m.getObjective().getValue()))
-        plot_network(arc2driver, data.distances, time_horizon, solved=True)
-        return m
-    elif m.Status != GRB.INFEASIBLE:
-        print('Optimization was stopped with status %d' % m.Status)
-        return m
-
-    m.computeIIS()
-    m.write('inf.ilp')
-    return m
-
-
 def arc_param(arcs, param):
     return tupledict({(i, j, t): param[i] if i + 1 == j else param[j] for (i, j, t) in arcs})
 
@@ -507,13 +483,64 @@ def plot_network(arcs_list, dist, time_horizon, solved=False):
 
 def get_driver_route(results, driver_count):
     driver_num = [i for i in range(driver_count)]
-    print(driver_num)
+    # print(driver_num)
     xy_arcs = results[0] + results[1]
-    print(xy_arcs)
+    # print(xy_arcs)
     result = [[] for _ in driver_num]
     for d in driver_num:
         for elem in xy_arcs:
             if elem[0] == d:
                 result[d].append(elem[1:4])
-    print(result)
+    # print(result)
     return result
+
+
+def run_model(case, config):
+    """
+    Creates ModelData, ModelVars, Model instances to define and solve the model
+    :param case_db: scenarios database
+    :param config:  run configurations
+    :return:
+        model instance
+    """
+    random.seed(0)
+    # Declare and initialize model
+    m = Model('NFP')
+    data = ModelData(case, config)
+    plot_network(data.arcs_dep, data.distances, data.time_horizon)
+    v = ModelVars()
+
+    add_variables(m, data, v)
+    add_constraints(m, data, v)
+    add_symmetry_breaking_constr(m, data, v)
+    add_objective(m, data, v)
+
+    # Some model preferences to setup
+    # m.setParam('Heuristics', 0.5)
+    # m.setParam('MIPFocus', 1)
+    # m.setParam('Threads', 12)
+    # m.setParam('MIPGap', 0.1)
+    m.setParam('Timelimit', 1000)
+    # m.setParam('SolutionLimit', 1)
+    m.update()
+
+    # save the defined model in .lp format
+    m.write('nfp.lp')
+    m.optimize()
+
+    if m.Status == GRB.OPTIMAL:
+        print('Optimal objective: %g' % m.ObjVal)
+        # save the solution output
+        m.write('nfp.sol')
+        # write a csv file
+        results = result_csv(m)
+        arc2driver = get_driver_route(results, int(m.getObjective().getValue()))
+        plot_network(arc2driver, data.distances, data.time_horizon, solved=True)
+        return m
+    elif m.Status != GRB.INFEASIBLE:
+        print('Optimization was stopped with status %d' % m.Status)
+        return m
+
+    m.computeIIS()
+    m.write('inf.ilp')
+    return m

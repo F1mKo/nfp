@@ -5,9 +5,10 @@ from model import run_model
 
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
-          'scenario_number': '10733_1',
+          'scenario_number': '10372_1',
           'cycle_length': 7}  # settings
-
+# 10737_1
+# 10733_1
 
 def parse_data(input_file, sheet_name):
     with open(input_file):
