@@ -1,6 +1,7 @@
 from gurobipy import Model, tuplelist, tupledict, GRB, quicksum
 import matplotlib.pyplot as plt
 import csv
+import random
 
 
 class ModelData:
@@ -52,26 +53,24 @@ class ModelData:
         # arcs service durations
         self.t_a = arc_param(self.arcs_dep, self.distances)
 
-        self.plot_network()
-
         # unique time set T
         uniq_time_set = set([item[2] for item in self.arcs_dep])
         self.t_set = tuplelist(sorted(uniq_time_set))
 
         # A_a_x and A_a_y set
         self.Aax = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, max(self.time_limit))
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.get_last_elem(self.time_limit))
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with daily rest
         self.Aay = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, max(self.time_limit))
+            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.get_last_elem(self.time_limit))
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
         self.Aax_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), max(self.time_limit))
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.get_last_elem(self.time_limit))
             for (i, j, t) in self.arcs_dep})
         self.Aay_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), max(self.time_limit))
+            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.get_last_elem(self.time_limit))
             for (i, j, t) in self.arcs_dep})
         self.Akw = self.arcs_week_subset(week='single')
         self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
@@ -94,19 +93,6 @@ class ModelData:
         else:
             result = {(0, i, j, t): self.t_a[i, j, t] for (i, j, t) in self.arcs_dep}
         return tupledict(result)
-
-    def plot_network(self):
-        """
-        Arc network plotting function. Shows the generated Arcs set on the timeline.
-        :return: None
-        """
-        time_horizon = max(self.time_limit)
-        ax = plt.axes()
-        for a in self.arcs_dep:
-            ax.plot([a[0], a[1]], [a[2], (a[2] + self.distances[min(a[0], a[1])]) % time_horizon], 'blue')
-        ax.set_xlabel('Nodes')
-        ax.set_ylabel('Time (hours)')
-        plt.show()
 
     def arcs_network_creator(self):
         """
@@ -140,6 +126,15 @@ class ModelData:
         """
         result, var_type = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
         return tuplelist(result) if var_type == 'array' else result
+
+    @staticmethod
+    def get_last_elem(parameter):
+        """
+        returns last element of list or number, if input is integer
+        :param parameter:
+        :return:
+        """
+        return parameter if isinstance(parameter, int) else parameter[-1]
 
     @staticmethod
     def split_data(data):
@@ -177,6 +172,8 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
     :param v: ModelVars class instance
     :return: None
     """
+    v.b_d = tupledict({d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in data.drivers})
+
     v.x_da = tupledict({(d, i, j, t): m.addVar(vtype=GRB.BINARY,
                                                name="x_{0}_{1}_{2}_{3}".format(d, i, j, t))
                         for d in data.drivers for (i, j, t) in data.arcs_dep})
@@ -189,19 +186,18 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
                                              name="s_{0}_{1}_{2}".format(d, i, t))
                          for d in data.drivers for i in data.nodes for t in data.t_set})
 
-    v.b_d = tupledict({d: m.addVar(vtype=GRB.BINARY, name="b_{0}".format(d)) for d in data.drivers})
-
+    # driver single/double week work duration
     if data.n_weeks > 1:
         v.w_work_d = tupledict(
-            {(k, d): m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_{1}_weekly_work_duration".format(k, d)) for d in
+            {(k, d): m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}_{1}".format(k, d)) for d in
              data.drivers for k in data.week_num})
 
         v.ww_work_d = tupledict(
-            {d: m.addVar(vtype=GRB.CONTINUOUS, name="driver_{0}_double_week_work_duration".format(d)) for d in
+            {d: m.addVar(vtype=GRB.CONTINUOUS, name="d2wwd_{0}".format(d)) for d in
              data.drivers})
     else:
         v.w_work_d = tupledict(
-            {(0, d): m.addVar(vtype=GRB.CONTINUOUS, name="driver_0_{0}_weekly_work_duration".format(d)) for d in
+            {(0, d): m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}".format(d)) for d in
              data.drivers})
 
 
@@ -277,10 +273,17 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
             {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw) >= v.b_d[d],
                             name="weekly_rest_constraints_{0}".format(d)) for d in
              data.drivers})
+
     #   Create driver selection definition
     driver_selection_definition = tupledict({d: m.addConstr(
         quicksum(v.x_da[d, i, j, t] + v.y_da[d, i, j, t] for (i, j, t) in data.arcs_dep) <= 10000 * v.b_d[d],
         name="driver_selection_definition_{0}".format(d))
+        for d in data.drivers})
+
+    #   Create driver selection definition
+    driver_selection_definition1 = tupledict({d: m.addConstr(
+        quicksum(v.s_dit[d, i, t] for i in data.nodes for t in data.t_set) <= 10000 * v.b_d[d],
+        name="driver_selection_definition1_{0}".format(d))
         for d in data.drivers})
 
 
@@ -317,21 +320,45 @@ def add_objective(m: Model, data: ModelData, v: ModelVars):
     m.setObjective(quicksum(v.b_d[i] for i in data.drivers), GRB.MINIMIZE)
 
 
-def result_csv(m: Model):
+def result_csv(m: Model,):
     """
     Catches variables values from model optimization results. Creates a csv-type file with determined columns
     :param m: Model class instance
     :return: None
     """
-    columns = ['Driver', 'i', 'time', 'variable', 'value']
-    varInfo = [(v.varName.split('_')[1], v.varName.split('_')[2], v.varName.split('_')[-1], v.varName, v.X) for v in
-               m.getVars() if (v.X > 0 and len(v.varName.split('_')) > 2)]
+    columns = ['Driver', 'i', 'j', 'time', 'variable', 'value']
+    varInfo = get_var_values(m)
+    # print(varInfo)
 
     # Write to csv
     with open('model_out.csv', 'w') as my_file:
         wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
         wr.writerow(columns)
-        wr.writerows(varInfo)
+        for varinfo in varInfo:
+            wr.writerows(varinfo)
+
+    return varInfo
+
+
+def get_var_values(m: Model):
+    variable_list = ['x_', 'y_', 's_', 'b_', 'dwwd', 'd2wwd']
+    result = [[] for _ in range(len(variable_list))]
+    for v in m.getVars():
+        match = False
+        for i in range(len(variable_list)):
+            if match:
+                break
+            if variable_list[i] in v.varName and v.X > 0:
+                match = True
+                temp = v.varName.split('_')
+                temp = [int(i) for i in temp[1:]]
+                if i < 2:
+                    result[i].append(temp + [v.varName, v.X])
+                elif i == 2:
+                    result[i].append(temp + ['-', v.varName, v.X])
+                else:
+                    result[i].append(temp + ['-', '-', v.varName, v.X])
+    return result
 
 
 def run_model(case, config):
@@ -342,9 +369,12 @@ def run_model(case, config):
     :return:
         model instance
     """
+    random.seed(0)
     # Declare and initialize model
     m = Model('NFP')
     data = ModelData(case, config)
+    time_horizon = data.get_last_elem(data.time_limit)
+    plot_network(data.arcs_dep, data.distances, time_horizon)
     v = ModelVars()
 
     add_variables(m, data, v)
@@ -370,7 +400,9 @@ def run_model(case, config):
         # save the solution output
         m.write('nfp.sol')
         # write a csv file
-        result_csv(m)
+        results = result_csv(m)
+        arc2driver = get_driver_route(results, int(m.getObjective().getValue()))
+        plot_network(arc2driver, data.distances, time_horizon, solved=True)
         return m
     elif m.Status != GRB.INFEASIBLE:
         print('Optimization was stopped with status %d' % m.Status)
@@ -449,4 +481,39 @@ def find_closest_depart(a_, arcs_dep, rest_time, time_limit):  # 11 or 24 relax 
                 else:
                     result.append(a)
     # print('rel_time', rest_time, 'ans', a_, '==', result)
+    return result
+
+
+def plot_network(arcs_list, dist, time_horizon, solved=False):
+    """
+    Arc network plotting function. Shows the generated Arcs set on the timeline.
+    :return: None
+    """
+    def arc_plot_iterator(arcs):
+        for a in arcs:
+            ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+    ax = plt.axes()
+    if solved:
+        for arcs in arcs_list:
+            color = '#%06X' % random.randint(0, 0xFFFFFF)
+            arc_plot_iterator(arcs)
+    else:
+        color = 'blue'
+        arc_plot_iterator(arcs_list)
+    ax.set_xlabel('Nodes')
+    ax.set_ylabel('Time (hours)')
+    plt.show()
+
+
+def get_driver_route(results, driver_count):
+    driver_num = [i for i in range(driver_count)]
+    print(driver_num)
+    xy_arcs = results[0] + results[1]
+    print(xy_arcs)
+    result = [[] for _ in driver_num]
+    for d in driver_num:
+        for elem in xy_arcs:
+            if elem[0] == d:
+                result[d].append(elem[1:4])
+    print(result)
     return result
