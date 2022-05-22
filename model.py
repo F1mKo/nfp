@@ -43,7 +43,7 @@ class ModelData:
 
         # generate drivers set D
         self.drivers = tuplelist(d for d in range(0, 5 * self.n)) if self.n >= 3 else \
-            tuplelist(d for d in range(0, 3 * self.n ** 2))  # set of drivers
+            tuplelist(d for d in range(0, 4 * self.n ** 2))  # set of drivers
 
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
@@ -71,12 +71,14 @@ class ModelData:
             {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.time_horizon)
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
+        '''
         self.Aax_inv = tupledict({
             (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.time_horizon)
             for (i, j, t) in self.arcs_dep})
         self.Aay_inv = tupledict({
             (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.time_horizon)
             for (i, j, t) in self.arcs_dep})
+        '''
         self.Akw = self.arcs_week_subset(week='single')
         self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
         self.Ax = tupledict(
@@ -158,6 +160,7 @@ class ModelData:
         return parameter if isinstance(parameter, int) else parameter[-1]
         
     '''
+
     @staticmethod
     def split_data(data):
         """
@@ -219,7 +222,7 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
              data.drivers})
     else:
         v.w_work_d = tupledict(
-            {(0, d): m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}".format(d)) for d in
+            {d: m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}".format(d)) for d in
              data.drivers})
 
 
@@ -232,17 +235,17 @@ def add_driver_movement_logic(m: Model, data: ModelData, v: ModelVars):
     :return: None
     """
     # Driver movement definition
-    d_move = tupledict({(d, i, j, t):
-                            m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
-                                v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
-                                data.t_set[k] == t)
-                                        + quicksum(
-                                (v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
-                                        quicksum(
-                                            (v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
-                                        name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
-                        for d in data.drivers for (i, j, t) in data.arcs_dep})
 
+    d_move_main = tupledict({(d, i, j, t):
+                                 m.addConstr(v.s_dit[d, i, t] + v.x_da[d, i, j, t] + v.y_da[d, i, j, t] == quicksum(
+                                     v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set)) if
+                                     data.t_set[k] == t)
+                                             + quicksum(
+                                     (v.x_da[d, i1, j1, t1]) for (i1, j1, t1) in data.Aax[i, j, t]) +
+                                             quicksum(
+                                                 (v.y_da[d, i2, j2, t2]) for (i2, j2, t2) in data.Aay[i, j, t]),
+                                             name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                             for d in data.drivers for (i, j, t) in data.arcs_dep})
     '''
     d_move1 = tupledict({(d, i, t):
                                       m.addConstr(v.s_dit[d, i, t] + quicksum(v.x_da[d, ik, jk, tk] +
@@ -257,46 +260,73 @@ def add_driver_movement_logic(m: Model, data: ModelData, v: ModelVars):
                                           ) +
                                                   quicksum(
                                                       v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Ay[i, t] if data.is_arcs[i, t] == 1),
-                                                  name="driver_movement1_{0}_{1}_{2}".format(d, i, t))
+                                                  name="driver_movement_{0}_{1}_{2}".format(d, i, t))
                                   for d in data.drivers for i in data.nodes for t in data.t_set})
     '''
+    d_move_add00 = tupledict({(d, i, j, t):
+                                  m.addConstr(v.s_dit[d, j, tk] >= v.x_da[d, i, j, t],
+                                              name="driver_movement_rest_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                              for d in data.drivers for (i, j, t) in data.arcs_dep for tk in data.t_set if
+                              ((t + data.distances[
+                                  min(i, j)] <= tk <= data.time_horizon)
+                               or (0 <= tk < (t + data.distances[min(i, j)] + 11) % data.time_horizon) and
+                               (t + data.distances[
+                                   min(i, j)] + 11 > data.time_horizon)) or (t + data.distances[
+                                  min(i, j)] <= tk < t + data.distances[min(i, j)] + 11 and (
+                                                                                     t + data.distances[
+                                                                                 min(i,
+                                                                                     j)] + 11 > data.time_horizon))})
 
-    d_move2 = tupledict({(d, i, t):
-                             m.addConstr(v.s_dit[d, i, t] + quicksum(v.x_da[d, ik, jk, tk] +
-                                                                     v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
-                                                                     data.arcs_dep if
-                                                                     ik == i and tk == t) <= 1,
-                                         name="driver_movement2_{0}_{1}_{2}".format(d, i, t))
-                         for d in data.drivers for i in data.nodes for t in data.t_set})
-
-    d_move3 = tupledict({(d, i, j, t):
+    d_move_add01 = tupledict({(d, i, j, t):
+                                  m.addConstr(v.s_dit[d, j, tk] >= v.y_da[d, i, j, t],
+                                              name="driver_movement_rest_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                              for d in data.drivers for (i, j, t) in data.arcs_dep for tk in data.t_set if
+                              ((t + data.distances[
+                                  min(i, j)] <= tk <= data.time_horizon)
+                               or (0 <= tk < (t + data.distances[min(i, j)] + 24) % data.time_horizon) and
+                               (t + data.distances[
+                                   min(i, j)] + 11 > data.time_horizon)) or (t + data.distances[
+                                  min(i, j)] <= tk < t + data.distances[min(i, j)] + 24 and (
+                                                                                     t + data.distances[
+                                                                                 min(i,
+                                                                                     j)] + 24 > data.time_horizon))})
+    '''
+    d_move_add0 = tupledict({(d, i, t):
+                                 m.addConstr(quicksum(v.x_da[d, ik, jk, tk] +
+                                                      v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
+                                                      data.arcs_dep if
+                                                      ik == i and tk == t) <= 1,
+                                             name="driver_movement2_{0}_{1}_{2}".format(d, i, t))
+                             for d in data.drivers for i in data.nodes for t in data.t_set})
+    '''
+    d_move_add1 = tupledict({(d, i, j, t):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     ik == j and ((t <= tk < t + data.distances[
+                     ((t <= tk < t + data.distances[
                          min(i, j)] + 11 <= data.time_horizon)
-                                  or (
-                                          t + data.time_horizon <= tk + data.time_horizon < t +
-                                          data.distances[
-                                              min(i, j)] + 11 + data.time_horizon and
-                                          t + data.distances[
-                                              min(i, j)] + 11 > data.time_horizon)))
+                      or (
+                              t + data.time_horizon <= tk + data.time_horizon < t +
+                              data.distances[
+                                  min(i, j)] + 11 + data.time_horizon and
+                              t + data.distances[
+                                  min(i, j)] + 11 > data.time_horizon)))
             <= 1 - v.x_da[d, i, j, t],
             name="driver_movement3_{0}_{1}_{2}_{3}".format(d, i, j, t))
         for d in data.drivers for (i, j, t) in data.arcs_dep})
 
-    d_move4 = tupledict({(d, i, j, t):
+    d_move_add2 = tupledict({(d, i, j, t):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     ik == j and ((t <= tk < t + data.distances[
+                     ((t <= tk < t + data.distances[
                          min(i, j)] + 24 <= data.time_horizon)
-                                  or (
-                                          t + data.time_horizon <= tk + data.time_horizon < t +
-                                          data.distances[
-                                              min(i, j)] + 24 + data.time_horizon and
-                                          t + data.distances[
-                                              min(i, j)] + 24 > data.time_horizon)))
+                      or (
+                              t + data.time_horizon <= tk + data.time_horizon < t +
+                              data.distances[
+                                  min(i, j)] + 24 + data.time_horizon and
+                              t + data.distances[
+                                  min(i, j)] + 24 > data.time_horizon)))
             <= 1 - v.y_da[d, i, j, t],
             name="driver_movement4_{0}_{1}_{2}_{3}".format(d, i, j, t))
         for d in data.drivers for (i, j, t) in data.arcs_dep})
@@ -356,10 +386,10 @@ def add_constraints(m: Model, data: ModelData, v: ModelVars):
         # Driver week work time definition and constraints
         driver_wwd_def = tupledict({d: m.addConstr(
             quicksum(data.Akw[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akw) ==
-            v.w_work_d[0, d], name="driver_w_wd_definition_0_{0}".format(d))
+            v.w_work_d[d], name="driver_w_wd_definition_{0}".format(d))
             for d in data.drivers})
 
-        driver_wwd_constr = tupledict({d: m.addConstr(v.w_work_d[0, d] <= 56,
+        driver_wwd_constr = tupledict({d: m.addConstr(v.w_work_d[d] <= 56,
                                                       name="driver_w_wd_constraints_{0}".format(d))
                                        for d in data.drivers})
         # Create weekly rest constraints
@@ -530,7 +560,8 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
     def plot_iterator(arcs, is_idles=False):
         if not is_idles:
             for a in arcs:
-                ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+                # ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+                ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])])], color)
         else:
             for i in arcs:
                 # print(i)
