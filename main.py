@@ -7,8 +7,12 @@ config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
           'scenario_number': '10372_1',
           'cycle_length': 7}  # settings
+# 10372_1
 # 10737_1
 # 10733_1
+# 30748_1 not work (array of departs)
+# 12372_1 not work (one distance processing error)
+
 
 def parse_data(input_file, sheet_name):
     with open(input_file):
