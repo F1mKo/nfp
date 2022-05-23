@@ -1,5 +1,7 @@
-from gurobipy import tuplelist, tupledict
-
+from gurobipy import Model, tuplelist, tupledict
+import matplotlib.pyplot as plt
+import csv
+import random
 
 class ModelData:
     def __init__(self, case_db, config):
@@ -91,14 +93,14 @@ class ModelData:
              for i in
              self.nodes for t in
              self.t_set})  # set of arcs with the closest arrival time to departure arc a with daily rest
-        # print(self.Ax)
+        print('Ax', self.Ax)
 
         self.Ay = tupledict(
             {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 24, self.time_horizon)
              for i in
              self.nodes for t in
              self.t_set})  # set of arcs with the closest arrival time to departure arc a with weekly rest
-        # print(self.Ay)
+        print('Ay', self.Ay)
 
         self.is_arcs = tupledict(
             {(i, t): 1 if sum(self.t_a[ik, jk, tk] for (ik, jk, tk) in self.arcs_dep if
@@ -252,3 +254,110 @@ def find_closest_depart(a_, arcs_dep, rest_time, time_limit):  # 11 or 24 relax 
                     result.append(a)
     # print('rel_time', rest_time, 'ans', a_, '==', result)
     return result
+
+
+def result_csv(m: Model):
+    """
+    Catches variables values from model optimization results. Creates a csv-type file with determined columns
+    :param m: Model class instance
+    :return: None
+    """
+    columns = ['Driver', 'i', 'j', 'time', 'variable', 'value']
+    varInfo = get_var_values(m)
+    # print(varInfo)
+
+    # Write to csv
+    with open('model_out.csv', 'w') as my_file:
+        wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
+        wr.writerow(columns)
+        for varinfo in varInfo:
+            wr.writerows(varinfo)
+
+    return varInfo
+
+
+def get_var_values(m: Model):
+    variable_list = ['x_', 'y_', 's_', 'b_', 'dwwd', 'd2wwd']
+    result = [[] for _ in range(len(variable_list))]
+    for v in m.getVars():
+        match = False
+        for i in range(len(variable_list)):
+            if match:
+                break
+            if variable_list[i] in v.varName and v.X > 0:
+                match = True
+                temp = v.varName.split('_')
+                temp = [int(i) for i in temp[1:]]
+                if i < 2:
+                    result[i].append(temp + [v.varName, v.X])
+                elif i == 2:
+                    result[i].append(temp[:-1] + ['-', temp[-1], v.varName, v.X])
+                else:
+                    result[i].append(temp + ['-', '-', v.varName, v.X])
+    return result
+
+
+def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=None):
+    """
+    Arc network plotting function. Shows the generated Arcs set on the timeline.
+    :return: None
+    """
+
+    def plot_iterator(arcs, is_idles=False):
+        if not is_idles:
+            for a in arcs:
+                # ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+                ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])])], color)
+        else:
+            for i in arcs:
+                # print(i)
+                if i[2] == t_set[-1]:
+                    ax.plot([i[1], i[1]], [i[2], time_horizon], color)
+                    ax.plot([i[1], i[1]], [0, t_set[0]], color)
+                else:
+                    tk = sum(t_set[k + 1] for k in range(len(t_set))
+                             if t_set[k] == i[2] and k < len(t_set) - 1)
+                    # print(tk)
+                    ax.plot([i[1], i[1]], [i[2], tk], color)
+
+    if solved:
+        d = 0
+        for arcs, idle in zip(arcs_list, idle_nodes):
+            plt.figure()
+            ax = plt.axes()
+            plt.title("driver_{0}_route".format(d))
+            color = '#%06X' % random.randint(0, 0xFFFFFF)
+            plot_iterator(arcs)
+            plot_iterator(idle, is_idles=True)
+            ax.set_xlabel('Nodes')
+            ax.set_ylabel('Time (hours)')
+            plt.show()
+            d += 1
+            # break
+    else:
+        ax = plt.axes()
+        color = 'blue'
+        plot_iterator(arcs_list)
+        ax.set_xlabel('Nodes')
+        ax.set_ylabel('Time (hours)')
+        plt.show()
+
+
+def get_driver_route(results, driver_count):
+    driver_num = [i for i in range(driver_count)]
+    # print(driver_num)
+    xy_arcs = results[0] + results[1]
+    # print(xy_arcs)
+    result = [[] for _ in driver_num]
+    idles = [[] for _ in driver_num]
+    for d in driver_num:
+        for elem in xy_arcs:
+            if elem[0] == d:
+                result[d].append(elem[1:4])
+
+        for elem in results[2]:
+            if elem[0] == d:
+                idles[d].append(elem[:2] + [elem[3]])
+    # print(result)
+    # print(idles)
+    return result, idles

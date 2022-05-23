@@ -1,18 +1,18 @@
 from datetime import datetime
 import pandas as pd
-from model_data import ModelData
 from gurobipy import Model, GRB
-from model import ModelVars, plot_network, add_variables, add_driver_movement_basic, add_driver_movement_logic, add_week_work_constraints, \
-    add_symmetry_breaking_constr, add_objective, result_csv, get_driver_route
+from model_data import ModelData, plot_network, result_csv, get_driver_route
+from model import ModelVars, add_variables, add_driver_movement_basic, add_driver_movement_alt_logic, add_week_work_constraints, \
+    add_symmetry_breaking_constr, add_objective
 import random
 
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
-          'scenario_number': '10737_1',
+          'scenario_number': '10372_1',
           'cycle_length': 7}  # settings
 
 # 10372_1
-# 10737_1
+# 10737_1 # it works a bit
 # 10733_1
 # 30748_1 not work (array of departs)
 # 12372_1 not work (one distance processing error)
@@ -43,8 +43,8 @@ if __name__ == '__main__':
     v = ModelVars()
 
     add_variables(m, data, v)
-    add_driver_movement_basic(m, data, v)
-    # add_driver_movement_logic(m, data, v)
+    # add_driver_movement_basic(m, data, v)
+    add_driver_movement_alt_logic(m, data, v)
     add_week_work_constraints(m, data, v)
     add_symmetry_breaking_constr(m, data, v)
     add_objective(m, data, v)
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     # m.setParam('MIPFocus', 1)
     m.setParam('Threads', 12)
     # m.setParam('MIPGap', 0.1)
-    m.setParam('Timelimit', 1000)
+    m.setParam('Timelimit', 3000)
     # m.setParam('SolutionLimit', 1)
     m.update()
 
@@ -72,6 +72,7 @@ if __name__ == '__main__':
         plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, solved=True, idle_nodes=node2driver)
     elif m.Status != GRB.INFEASIBLE:
         print('Optimization was stopped with status %d' % m.Status)
+    else:
         m.computeIIS()
         m.write('inf.ilp')
 
