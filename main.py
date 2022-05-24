@@ -8,7 +8,7 @@ import random
 
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
-          'scenario_number': '10372_1',
+          'scenario_number': '10737_1',
           'cycle_length': 7}  # settings
 
 # 10372_1
@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     # Some model preferences to setup
     # m.setParam('Heuristics', 0.5)
-    # m.setParam('MIPFocus', 1)
+    m.setParam('MIPFocus', 1)
     m.setParam('Threads', 12)
     # m.setParam('MIPGap', 0.1)
     m.setParam('Timelimit', 3000)
