@@ -96,7 +96,7 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
         for d in data.drivers})
 
     # Driver movement definition
-
+    '''
     d_move_alt = tupledict({(d, i, t):
                                 m.addConstr(v.s_dit[d, i, t] + v.x_da.sum(d, i, '*', t) +
                                                                    v.y_da.sum(d, i, '*', t) == quicksum(
@@ -122,7 +122,7 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
                                                 v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Ay[i, t]),
                                             name="driver_movement_{0}_{1}_{2}".format(d, i, t))
                             for d in data.drivers for i in data.nodes for t in data.t_set})
-    '''
+
     '''
     d_move_add00 = tupledict({(d, i, j, t):
                                   m.addConstr(v.s_dit[d, j, tk] >= v.x_da[d, i, j, t],

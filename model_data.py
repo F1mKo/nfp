@@ -328,7 +328,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
             plt.title("driver_{0}_route".format(d))
             color = '#%06X' % random.randint(0, 0xFFFFFF)
             plot_iterator(arcs)
-            plot_iterator(idle, is_idles=True)
+            # plot_iterator(idle, is_idles=True)
             ax.set_xlabel('Nodes')
             ax.set_ylabel('Time (hours)')
             plt.show()

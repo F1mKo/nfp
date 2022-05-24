@@ -8,12 +8,12 @@ import random
 
 config = {"input_file": "scenarios.xlsx",
           'sheet_name': 'augmentation',
-          'scenario_number': '10372_1',
+          'scenario_number': '10737_1',
           'cycle_length': 7}  # settings
 
 # 10372_1
-# 10737_1 # it works a bit
-# 10733_1
+# 10737_1 # it works a bit on revision number 5752cc222a9c168b6c42bf6bba899d70ed3da5b0
+# 10733_1 # 6 nodes dimension
 # 30748_1 not work (array of departs)
 # 12372_1 not work (one distance processing error)
 
