@@ -301,3 +301,21 @@ def add_objective(m: Model, data: ModelData, v: ModelVars):
     :return: None
     """
     m.setObjective(v.b_d.sum('*'), GRB.MINIMIZE)
+
+
+def constraint_creator(m: Model, data: ModelData, v: ModelVars, baseline=True):
+    """
+    :param m: Model class instance
+    :param data: ModelData class instance
+    :param v: ModelVars class instance
+    :param baseline: chose base model version if True else alternative constraints version
+    :return: None
+    """
+    if baseline:
+        add_driver_movement_basic(m, data, v)
+    else:
+        add_driver_movement_alt_logic(m, data, v)
+
+    add_week_work_constraints(m, data, v)
+    add_symmetry_breaking_constr(m, data, v)
+    add_objective(m, data, v)

@@ -93,14 +93,14 @@ class ModelData:
              for i in
              self.nodes for t in
              self.t_set})  # set of arcs with the closest arrival time to departure arc a with daily rest
-        print('Ax', self.Ax)
+        # print('Ax', self.Ax)
 
         self.Ay = tupledict(
             {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 24, self.time_horizon)
              for i in
              self.nodes for t in
              self.t_set})  # set of arcs with the closest arrival time to departure arc a with weekly rest
-        print('Ay', self.Ay)
+        # print('Ay', self.Ay)
 
         self.is_arcs = tupledict(
             {(i, t): 1 if sum(self.t_a[ik, jk, tk] for (ik, jk, tk) in self.arcs_dep if

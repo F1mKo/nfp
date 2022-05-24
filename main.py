@@ -3,7 +3,7 @@ import pandas as pd
 from gurobipy import Model, GRB
 from model_data import ModelData, plot_network, result_csv, get_driver_route
 from model import ModelVars, add_variables, add_driver_movement_basic, add_driver_movement_alt_logic, add_week_work_constraints, \
-    add_symmetry_breaking_constr, add_objective
+    add_symmetry_breaking_constr, add_objective, constraint_creator
 import random
 
 config = {"input_file": "scenarios.xlsx",
@@ -39,15 +39,13 @@ if __name__ == '__main__':
     # Declare and initialize model
     m = Model('NFP')
     data = ModelData(case, config)
-    plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon)
     v = ModelVars()
 
+    plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon)
+
     add_variables(m, data, v)
-    # add_driver_movement_basic(m, data, v)
-    add_driver_movement_alt_logic(m, data, v)
-    add_week_work_constraints(m, data, v)
-    add_symmetry_breaking_constr(m, data, v)
-    add_objective(m, data, v)
+    # constraint_creator(m, data, v, baseline=True)
+    constraint_creator(m, data, v, baseline=False)
 
     # Some model preferences to setup
     # m.setParam('Heuristics', 0.5)
