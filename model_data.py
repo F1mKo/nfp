@@ -24,7 +24,7 @@ class ModelData:
                 [((i + 1) / self.n_weeks) * 24 * self.cycle_length for i in self.week_num])
             self.time_horizon = self.time_limit[-1]
         else:
-            self.week_num = 0
+            self.week_num = tuplelist([0,])
             self.time_limit = 24 * self.cycle_length
             self.time_horizon = 24 * self.cycle_length
 
@@ -62,9 +62,10 @@ class ModelData:
         self.t_a = arc_param(self.arcs_dep, self.distances)
 
         # unique time set T
+        # uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
         uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
         self.t_set = tuplelist(sorted(uniq_time_set))
-        # print('t_set', self.t_set)
+        print('t_set', self.t_set)
 
         # A_a_x and A_a_y set
         self.Aax = tupledict(
@@ -135,15 +136,10 @@ class ModelData:
         """
         arcs_dep = []
         arcs_arr = []
-        if isinstance(self.departures[0], list) and isinstance(self.departures[1], list):
-            for cur_deps in zip(self.departures[0], self.departures[1]):
-                temp = route_sim(cur_deps, self.distances, self.cycle_length)
-                arcs_dep += temp[0]
-                arcs_arr += temp[1]
-        else:
-            arcs_dep, arcs_arr = route_sim(self.departures, self.distances, self.cycle_length)
-        # arcs_dep = sorted(arcs_dep, key=lambda item: item[2])
-        # print(arcs_dep)
+        for cur_deps in zip(self.departures[0], self.departures[1]):
+            temp = route_sim(cur_deps, self.distances, self.cycle_length)
+            arcs_dep += temp[0]
+            arcs_arr += temp[1]
         return tuplelist(arcs_dep), tuplelist(arcs_arr)
 
     def cell_reader(self, case_db, cell_name):
@@ -156,7 +152,7 @@ class ModelData:
             result if result is number
         """
         result = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
-        return result if isinstance(result, int) else tuplelist(result)
+        return tuplelist([result,]) if isinstance(result, int) else tuplelist(result)
 
     '''
     @staticmethod
@@ -276,6 +272,14 @@ def result_csv(m: Model):
     return varInfo
 
 
+def read_sol_csv(filename='10737_1.csv'):
+    result = []
+    with open(filename, newline='\n') as my_file:
+        for line in csv.reader(my_file, delimiter=',', quotechar='"'):
+            result.append(line)
+    return result
+
+
 def get_var_values(m: Model):
     variable_list = ['x_', 'y_', 's_', 'b_', 'dwwd', 'd2wwd']
     result = [[] for _ in range(len(variable_list))]
@@ -293,7 +297,7 @@ def get_var_values(m: Model):
                 elif i == 2:
                     result[i].append(temp[:-1] + ['-', temp[-1], v.varName, v.X])
                 else:
-                    result[i].append(temp + ['-', '-', v.varName, v.X])
+                    result[i].append(temp + ['-', '-', '-', v.varName, v.X])
     return result
 
 

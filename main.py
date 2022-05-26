@@ -1,9 +1,9 @@
 from datetime import datetime
 import pandas as pd
 from gurobipy import Model, GRB
-from model_data import ModelData, plot_network, result_csv, get_driver_route
+from model_data import ModelData, plot_network, result_csv, get_driver_route, read_sol_csv
 from model import ModelVars, add_variables, add_driver_movement_basic, add_driver_movement_alt_logic, add_week_work_constraints, \
-    add_symmetry_breaking_constr, add_objective, constraint_creator
+    add_symmetry_breaking_constr, add_objective, constraint_creator, fix_arcs
 import random
 
 config = {"input_file": "scenarios.xlsx",
@@ -46,6 +46,10 @@ if __name__ == '__main__':
     add_variables(m, data, v)
     # constraint_creator(m, data, v, baseline=True)
     constraint_creator(m, data, v, baseline=False)
+
+    # start_sol = read_sol_csv()
+    # print(start_sol)
+    # fix_arcs(m, data, v, solution=start_sol)
 
     # Some model preferences to setup
     # m.setParam('Heuristics', 0.5)
