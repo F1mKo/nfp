@@ -131,12 +131,12 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
                                   min(i, j)]) % data.time_horizon] >= v.y_da[d, i, j, t],
                                               name="driver_movement_rest_y_{0}_{1}_{2}_{3}".format(d, i, j, t))
                               for d in data.drivers for (i, j, t) in data.arcs_dep})
-'''
+    '''
     d_move_add1 = tupledict({(d, i, j, t):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     ((ik != i and jk != j) or jk != j) and ((t <= tk < t + data.distances[
+                     (jk != j) and ((t <= tk < t + data.distances[
                          min(i, j)] + 11 <= data.time_horizon)
                                                              or (
                                                                      t + data.time_horizon <= tk + data.time_horizon < t +
@@ -161,7 +161,7 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     ((ik != i and jk != j) or jk != j) and ((t <= tk < t + data.distances[
+                     jk != j and ((t <= tk < t + data.distances[
                          min(i, j)] + 24 <= data.time_horizon)
                                                              or (
                                                                      t + data.time_horizon <= tk + data.time_horizon < t +
@@ -220,7 +220,7 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
     driver_2wwd_def = tupledict({d: m.addConstr(
         quicksum(data.Akww[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akww) ==
         v.ww_work_d[d], name="driver_2w_wd_definition_{0}".format(d))
-        for d in data.drivers for ki in data.week_num})
+        for d in data.drivers})
 
     driver_wwd_constr = tupledict({(k, d): m.addConstr(v.w_work_d[k, d] <= 56,
                                                        name="driver_w_wd_constraints_{0}_{1}".format(k, d))
@@ -235,7 +235,6 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
         {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw if k == ki) >= v.b_d[d],
                         name="weekly_rest_constraints_{0}".format(d)) for d in
          data.drivers for ki in data.week_num})
-
 
 
 def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):

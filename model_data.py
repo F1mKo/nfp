@@ -335,6 +335,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
             plot_iterator(idle, is_idles=True)
             ax.set_xlabel('Nodes')
             ax.set_ylabel('Time (hours)')
+            plt.xlim([0, len(dist)])
             plt.show()
             d += 1
             # break
