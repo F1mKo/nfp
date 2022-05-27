@@ -228,11 +228,11 @@ def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
     :return: None
     """
     # Create driver work_time symmetry breaking constraints
-    # symmetry_breaking_wwd_constraints = {
-    #     data.drivers[i]: m.addConstr(v.work_d[data.drivers[i + 1]] <= v.work_d[data.drivers[i]],
-    #                                  name="symmetry_breaking_wwd_constraints_{0}".format(
-    #                                      data.drivers[i]))
-    #     for i in range(len(data.drivers) - 1)}
+    symmetry_breaking_wwd_constraints = {
+         data.drivers[i]: m.addConstr(v.w_work_d[0, data.drivers[i + 1]] <= v.w_work_d[0, data.drivers[i]],
+                                      name="symmetry_breaking_wwd_constraints_{0}".format(
+                                          data.drivers[i]))
+         for i in range(len(data.drivers) - 1)}
     # Create driver selection symmetry breaking constraints
     symmetry_breaking_ds_constraints = {
         data.drivers[i]: m.addConstr(v.b_d[data.drivers[i]] >= v.b_d[data.drivers[i + 1]],
@@ -251,7 +251,7 @@ def add_objective(m: Model, data: ModelData, v: ModelVars):
     """
     #   Create driver selection definition
     d_selection_def = tupledict({d: m.addConstr(
-        v.x_da.sum(d, '*', '*', '*') + v.y_da.sum(d, '*', '*', '*') <= 10000 * v.b_d[d],
+        v.x_da.sum(d, '*', '*', '*') + v.y_da.sum(d, '*', '*', '*') <= (2 * data.n * data.cycle_length) * v.b_d[d],
         name="driver_selection_definition_{0}".format(d))
         for d in data.drivers})
 
