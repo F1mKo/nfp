@@ -39,12 +39,12 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
 
     # driver single/double week work duration
     v.w_work_d = tupledict(
-            {(k, d): m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}_{1}".format(k, d)) for d in
-             data.drivers for k in data.week_num})
+        {(k, d): m.addVar(vtype=GRB.CONTINUOUS, name="dwwd_{0}_{1}".format(k, d)) for d in
+         data.drivers for k in data.week_num})
 
     v.ww_work_d = tupledict(
-            {d: m.addVar(vtype=GRB.CONTINUOUS, name="d2wwd_{0}".format(d)) for d in
-             data.drivers})
+        {d: m.addVar(vtype=GRB.CONTINUOUS, name="d2wwd_{0}".format(d)) for d in
+         data.drivers})
 
 
 def add_driver_movement_basic(m: Model, data: ModelData, v: ModelVars):
@@ -136,23 +136,14 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     (jk != j) and ((t <= tk < t + data.distances[
-                         min(i, j)] + 11 <= data.time_horizon)
-                                                             or (
-                                                                     t + data.time_horizon <= tk + data.time_horizon < t +
-                                                                     data.distances[
-                                                                         min(i, j)] + 11 + data.time_horizon and
-                                                                     t + data.distances[
-                                                                         min(i, j)] + 11 > data.time_horizon)) or
-                     (ik == i and jk == j) and ((t < tk < t + data.distances[
-                         min(i, j)] + 11 <= data.time_horizon)
-                                                or (
-                                                        t + data.time_horizon < tk + data.time_horizon < t +
-                                                        data.distances[
-                                                            min(i, j)] + 11 + data.time_horizon and
-                                                        t + data.distances[
-                                                            min(i, j)] + 11 > data.time_horizon))
-                     )
+                     (t + data.distances[min(i, j)] + 11 > data.time_horizon) and (
+                             tk <= data.time_horizon and
+                             (jk != j and t <= tk or (ik == i and jk == j) and t < tk) or 0 <= tk < (
+                                     t + data.distances[min(i, j)] + 11) % data.time_horizon)
+                     or
+                     (t + data.distances[min(i, j)] + 11 <= data.time_horizon) and (tk < t + data.distances[
+                         min(i, j)] + 11) and
+                     (jk != j and t <= tk or (ik == i and jk == j) and t < tk))
             <= 1 - v.x_da[d, i, j, t],
             name="driver_movement3_{0}_{1}_{2}_{3}".format(d, i, j, t))
         for d in data.drivers for (i, j, t) in data.arcs_dep})
@@ -161,22 +152,14 @@ def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
         m.addConstr(
             quicksum(v.x_da[d, ik, jk, tk] + v.y_da[d, ik, jk, tk] for (ik, jk, tk) in
                      data.arcs_dep if
-                     jk != j and ((t <= tk < t + data.distances[
-                         min(i, j)] + 24 <= data.time_horizon)
-                                                             or (
-                                                                     t + data.time_horizon <= tk + data.time_horizon < t +
-                                                                     data.distances[
-                                                                         min(i, j)] + 24 + data.time_horizon and
-                                                                     t + data.distances[
-                                                                         min(i, j)] + 24 > data.time_horizon)) or
-                     (ik == i and jk == j) and ((t < tk < t + data.distances[
-                         min(i, j)] + 24 <= data.time_horizon)
-                                                or (
-                                                        t + data.time_horizon < tk + data.time_horizon < t +
-                                                        data.distances[
-                                                            min(i, j)] + 24 + data.time_horizon and
-                                                        t + data.distances[
-                                                            min(i, j)] + 24 > data.time_horizon)))
+                     (t + data.distances[min(i, j)] + 24 > data.time_horizon) and (
+                             tk <= data.time_horizon and
+                             (jk != j and t <= tk or (ik == i and jk == j) and t < tk) or 0 <= tk < (
+                                     t + data.distances[min(i, j)] + 24) % data.time_horizon)
+                     or
+                     (t + data.distances[min(i, j)] + 24 <= data.time_horizon) and (tk < t + data.distances[
+                         min(i, j)] + 24) and
+                     (jk != j and t <= tk or (ik == i and jk == j) and t < tk))
             <= 1 - v.y_da[d, i, j, t],
             name="driver_movement4_{0}_{1}_{2}_{3}".format(d, i, j, t))
         for d in data.drivers for (i, j, t) in data.arcs_dep})
@@ -209,7 +192,6 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
             quicksum(v.x_da[d, i, j, t] + v.y_da[d, i, j, t] for d in data.drivers) == data.c_a[i, j, t],
             name="crew_size_constr_{0}_{1}_{2}".format(i, j, t))
         for (i, j, t) in data.arcs_dep})
-
 
     # Driver week work time definition and constraints
     driver_wwd_def = tupledict({d: m.addConstr(
