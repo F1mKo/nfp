@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import csv
 import random
 
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams.update({'font.size': 14})
+
+
 class ModelData:
     def __init__(self, case_db, config):
         """
@@ -301,7 +305,7 @@ def get_var_values(m: Model):
     return result
 
 
-def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=None):
+def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None):
     """
     Arc network plotting function. Shows the generated Arcs set on the timeline.
     :return: None
@@ -348,6 +352,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
             plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
             plt.ylim([-1, time_horizon + 1])
             # ax.set_ylim(bottom=-1)
+            plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(d), format="pdf")
             plt.show()
             d += 1
             # break
@@ -362,6 +367,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
         plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
         plt.ylim([-1, time_horizon + 1])
         # ax.set_ylim(bottom=-1)
+        plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
         plt.show()
 
 
