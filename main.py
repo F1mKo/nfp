@@ -11,29 +11,6 @@ config = {"input_file": "scenarios.xlsx",
           'scenario_number': '10737_1',
           'cycle_length': 7}  # settings
 
-'''
-trylist
-10737_1 done
-10737_2 infease
-10737_3 infease
-10741_1 infease
-10748_1 infease
-10763_1 infease
-10408_1
-10408_2
-10408_3
-10362_1
-10372_1
-10372_2
-12733_1
-'''
-
-# 10372_1
-# 10737_1 # it works a bit on alternative version
-# 10733_1 # 6 nodes dimension
-# 30748_1 not work (array of departs)
-# 12372_1 not work (one distance processing error)
-
 
 def parse_data(input_file, sheet_name):
     with open(input_file):
