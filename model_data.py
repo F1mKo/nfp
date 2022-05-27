@@ -311,7 +311,17 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
         if not is_idles:
             for a in arcs:
                 # ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
-                ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])])], color)
+                if a[2] + dist[min(a[0], a[1])] <= time_horizon:
+                    ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])])], color)
+                else:
+                    if a[0] > a[1]:
+                        part_route_node = min(a[0], a[1]) + (max(a[0], a[1]) - min(a[0], a[1])) * \
+                                      (1 - (time_horizon - a[2]) / dist[min(a[0], a[1])])
+                    else:
+                        part_route_node = max(a[0], a[1]) - (max(a[0], a[1]) - min(a[0], a[1])) * \
+                                          (1 - (time_horizon - a[2]) / dist[min(a[0], a[1])])
+                    ax.plot([a[0], part_route_node], [a[2], time_horizon], color)
+                    ax.plot([part_route_node, a[1]], [0, (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
         else:
             for i in arcs:
                 # print(i)
@@ -329,22 +339,29 @@ def plot_network(arcs_list, dist, t_set, time_horizon, solved=False, idle_nodes=
         for arcs, idle in zip(arcs_list, idle_nodes):
             plt.figure()
             ax = plt.axes()
-            plt.title("driver_{0}_route".format(d))
+            plt.title("Маршрут водителя {0}".format(d))
             color = '#%06X' % random.randint(0, 0xFFFFFF)
             plot_iterator(arcs)
             plot_iterator(idle, is_idles=True)
-            ax.set_xlabel('Nodes')
-            ax.set_ylabel('Time (hours)')
-            plt.xlim([0, len(dist)])
+            ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
+            ax.set_ylabel('Время, час')
+            plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
+            plt.ylim([-1, time_horizon + 1])
+            # ax.set_ylim(bottom=-1)
             plt.show()
             d += 1
             # break
     else:
+        plt.figure()
         ax = plt.axes()
+        plt.title('Транспортная сеть')
         color = 'blue'
         plot_iterator(arcs_list)
-        ax.set_xlabel('Nodes')
-        ax.set_ylabel('Time (hours)')
+        ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
+        ax.set_ylabel('Время, час')
+        plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
+        plt.ylim([-1, time_horizon + 1])
+        # ax.set_ylim(bottom=-1)
         plt.show()
 
 
