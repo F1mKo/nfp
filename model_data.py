@@ -25,7 +25,7 @@ class ModelData:
         if self.n_weeks > 1:
             self.week_num = tuplelist(range(self.n_weeks))
             self.time_limit = tuplelist(
-                [((i + 1) / self.n_weeks) * 24 * self.cycle_length for i in self.week_num])
+                [int(((i + 1) / self.n_weeks) * 24 * self.cycle_length) for i in self.week_num])
             self.time_horizon = self.time_limit[-1]
         else:
             self.week_num = tuplelist([0,])
@@ -350,7 +350,9 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
             ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
             ax.set_ylabel('Время, час')
             plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
+            plt.xticks(range(len(dist)+1))
             plt.ylim([-1, time_horizon + 1])
+            plt.yticks(range(0, time_horizon + 1, 24))
             # ax.set_ylim(bottom=-1)
             plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(d), format="pdf")
             plt.show()
@@ -365,7 +367,9 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
         ax.set_ylabel('Время, час')
         plt.xlim([0 - 0.05 * len(dist), len(dist) + 0.05 * len(dist)])
+        plt.xticks(range(len(dist)+1))
         plt.ylim([-1, time_horizon + 1])
+        plt.yticks(range(0, time_horizon + 1, 24))
         # ax.set_ylim(bottom=-1)
         plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
         plt.show()
