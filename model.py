@@ -282,5 +282,5 @@ def constraint_creator(m: Model, data: ModelData, v: ModelVars, baseline=True):
         add_driver_movement_alt_logic(m, data, v)
 
     add_week_work_constraints(m, data, v)
-    add_symmetry_breaking_constr(m, data, v)
+    # add_symmetry_breaking_constr(m, data, v)
     add_objective(m, data, v)
