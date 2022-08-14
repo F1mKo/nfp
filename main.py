@@ -55,8 +55,8 @@ if __name__ == '__main__':
     plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, data.case_id)
 
     add_variables(m, data, v)
-    # constraint_creator(m, data, v, baseline=True)
-    constraint_creator(m, data, v, baseline=False)
+    constraint_creator(m, data, v, baseline=True)
+    # constraint_creator(m, data, v, baseline=False)
 
     # fix previous solution to search infeasibility
     # start_sol = read_sol_csv()

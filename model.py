@@ -1,5 +1,6 @@
 from gurobipy import Model, tupledict, GRB, quicksum
 from model_data import ModelData
+from itertools import combinations
 
 
 class ModelVars:
@@ -38,9 +39,9 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
                                              name="s_{0}_{1}_{2}".format(d, i, t))
                          for d in data.drivers for i in data.nodes for t in data.t_set})
 
-    v.start_d = tupledict({(d, i, j, 0): m.addVar(vtype=GRB.BINARY,
-                                                  name="start_{0}_{1}_{2}_{3}".format(d, i, j, 0))
-                           for d in data.drivers for (i, j, t) in data.arcs_dep if t == 0})
+    v.start_d = tupledict({(d, i, j, t): m.addVar(vtype=GRB.BINARY,
+                                                  name="start_{0}_{1}_{2}_{3}".format(d, i, j, t))
+                           for d in data.drivers for (i, j, t) in data.arcs_dep if t == data.t_set[0]})
 
     # driver single/double week work duration
     v.w_work_d = tupledict(
@@ -48,8 +49,8 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
          data.drivers for k in data.week_num})
 
     v.ww_work_d = tupledict(
-        {d: m.addVar(vtype=GRB.CONTINUOUS, name="d2wwd_{0}".format(d)) for d in
-         data.drivers})
+        {(k2[0], k2[1], d): m.addVar(vtype=GRB.CONTINUOUS, name="d2wwd_{0}_{1}_{2}".format(k2[0], k2[1], d)) for d in
+         data.drivers for k2 in combinations(data.week_num, 2) if (abs(k2[1] - k2[0]) == 1)})
 
 
 def add_driver_movement_basic(m: Model, data: ModelData, v: ModelVars):
@@ -71,7 +72,7 @@ def add_driver_movement_basic(m: Model, data: ModelData, v: ModelVars):
                                                       if data.t_set[k] == t)
                                              + quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[i, j, t])
                                              + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[i, j, t]) +
-                                             (v.start_d[d, i, j, t] if t == 0 else 0),
+                                             (v.start_d[d, i, j, t] if t == data.t_set[0] else 0),
                                              name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
                              for d in data.drivers for (i, j, t) in data.arcs_dep})
 
@@ -205,29 +206,43 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
         for (i, j, t) in data.arcs_dep})
 
     # Driver week work time definition and constraints
-    driver_wwd_def = tupledict({d: m.addConstr(
+    driver_wwd_def = tupledict({(k1, d): m.addConstr(
         quicksum(data.Akw[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akw if
-                 k == ki) == v.w_work_d[ki, d], name="driver_w_wd_definition_{0}_{1}".format(ki, d))
-        for d in data.drivers for ki in data.week_num})
+                 k == k1) == v.w_work_d[k1, d], name="driver_w_wd_definition_{0}_{1}".format(k1, d))
+        for d in data.drivers for k1 in data.week_num})
 
-    driver_2wwd_def = tupledict({d: m.addConstr(
-        quicksum(data.Akww[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akww) ==
-        v.ww_work_d[d], name="driver_2w_wd_definition_{0}".format(d))
-        for d in data.drivers})
+    driver_2wwd_def = tupledict({(k2[0], k2[1], d): m.addConstr(
+        quicksum(quicksum(data.Akw[k, i, j, t] * (v.x_da[d, i, j, t] + v.y_da[d, i, j, t]) for (k, i, j, t) in data.Akw if k == k1) for k1 in k2) ==
+        v.ww_work_d[k2[0], k2[1], d], name="driver_2w_wd_definition_{0}_{1}_{2}".format(k2[0], k2[1], d))
+        for d in data.drivers for k2 in combinations(data.week_num, 2) if (abs(k2[1] - k2[0]) == 1)})
 
     driver_wwd_constr = tupledict({(k, d): m.addConstr(v.w_work_d[k, d] <= 56,
                                                        name="driver_w_wd_constraints_{0}_{1}".format(k, d))
                                    for (k, d) in v.w_work_d})
 
-    driver_2wwd_constr = tupledict({d: m.addConstr(v.ww_work_d[d] <= 90,
-                                                   name="driver_2w_wd_constraints_{0}".format(d))
-                                    for d in data.drivers})
+    driver_2wwd_constr = tupledict({(k2[0], k2[1], d): m.addConstr(v.ww_work_d[k2[0], k2[1], d] <= 90,
+                                                   name="driver_2w_wd_constraints_{0}_{1}_{2}".format(k2[0], k2[1], d))
+                                    for d in data.drivers for k2 in combinations(data.week_num, 2) if (abs(k2[1] - k2[0]) == 1)})
 
     # Create weekly rest constraints
     weekly_rest_constr = tupledict(
         {d: m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw if k == ki) >= v.b_d[d],
                         name="weekly_rest_constraints_{0}".format(d)) for d in
          data.drivers for ki in data.week_num})
+
+    # Create weekly equality constraints
+    weekly_equality_constr_x = tupledict(
+        {(d, i1, j1, k1, k2): (m.addConstr(v.x_da[d, i1, j1, t1] == v.x_da[d, i2, j2, t2],
+                        name="weekly_equality_constraints_x_{0}_{1}_{2}_{3}_{4}".format(d, i1, j1, k1, k2))) for (k2, i2, j2, t2) in data.Akw
+             for (k1, i1, j1, t1) in data.Akw if (k1 + 1 == k2 and i1 == i2 and j1 == j2) for d in
+         data.drivers for k1 in data.week_num[:-1]})
+
+    weekly_equality_constr_y = tupledict(
+        {(d, i1, j1, k1, k2): (m.addConstr(v.y_da[d, i1, j1, t1] == v.y_da[d, i2, j2, t2],
+                        name="weekly_equality_constraints_y_{0}_{1}_{2}_{3}_{4}".format(d, i1, j1, k1, k2))) for (k2, i2, j2, t2) in data.Akw
+             for (k1, i1, j1, t1) in data.Akw if (k1 + 1 == k2 and i1 == i2 and j1 == j2) for d in
+         data.drivers for k1 in data.week_num[:-1]})
+
 
 
 def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):

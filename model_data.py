@@ -25,16 +25,13 @@ class ModelData:
         # calculation of time horizon length corresponding to cycle length
         self.cycle_length = 7 * self.n_weeks
 
-        if self.n_weeks > 1:
-            self.week_num = tuplelist(range(self.n_weeks))
-            self.time_limit = tuplelist(
-                [int(((i + 1) / self.n_weeks) * 24 * self.cycle_length) for i in self.week_num])
-            self.time_horizon = self.time_limit[-1]
-        else:
-            self.week_num = tuplelist([0,])
-            self.time_limit = 24 * self.cycle_length
-            self.time_horizon = 24 * self.cycle_length
+        self.week_num = tuplelist(range(self.n_weeks))
+        self.time_limit = tuplelist(
+            [int(((i + 1) / self.n_weeks) * 24 * self.cycle_length) for i in self.week_num])
+        self.time_horizon = self.time_limit[-1]
 
+        print('n_weeks', self.n_weeks)
+        print('time_limit', self.time_limit)
         # catch distances between nodes i and i+1
         self.distances = self.cell_reader(case_db, 'Участки')
         print('dist', self.distances)
@@ -63,15 +60,16 @@ class ModelData:
         # print('arcs_arr', self.arcs_arr)
 
         # crew size for each arc
-        self.c_a = arc_param(self.arcs_dep, self.crew_size)
+        self.c_a = self.arc_param(self.arcs_dep, self.crew_size)
 
         # arcs service durations
-        self.t_a = arc_param(self.arcs_dep, self.distances)
+        self.t_a = self.arc_param(self.arcs_dep, self.distances)
 
         # unique time set T
         # uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
         uniq_time_set = set([item[2] for item in self.arcs_dep])
         self.t_set = tuplelist(sorted(uniq_time_set))
+        self.t_arr_set = tuplelist(sorted(set([item[2] for item in self.arcs_arr])))
         print('t_set', self.t_set)
 
         # A_a_x and A_a_y set
@@ -84,53 +82,23 @@ class ModelData:
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
 
-        '''
-        self.Aax_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 11), self.time_horizon)
-            for (i, j, t) in self.arcs_dep})
-        self.Aay_inv = tupledict({
-            (i, j, t): find_closest_depart((i, j, t), self.arcs_dep, (self.t_a[i, j, t] + 24), self.time_horizon)
-            for (i, j, t) in self.arcs_dep})
-        '''
+        self.Akw = self.arcs_week_subset()
+        # self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
 
-        self.Akw = self.arcs_week_subset(week='single')
-        self.Akww = self.arcs_week_subset()  # set of arcs, which belongs to the double week 𝑘
-
-        self.Ax = tupledict(
-            {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 11, self.time_horizon)
-             for i in
-             self.nodes for t in
-             self.t_set})  # set of arcs with the closest arrival time to departure arc a with daily rest
-        # print('Ax', self.Ax)
-
-        self.Ay = tupledict(
-            {(i, t): find_closest_arrive((i, 0, t), self.arcs_arr, self.distances, 24, self.time_horizon)
-             for i in
-             self.nodes for t in
-             self.t_set})  # set of arcs with the closest arrival time to departure arc a with weekly rest
-        # print('Ay', self.Ay)
-
-        self.is_arcs = tupledict(
-            {(i, t): 1 if sum(self.t_a[ik, jk, tk] for (ik, jk, tk) in self.arcs_dep if
-                              ik == i and tk == t) > 0 else 0 for (i, t) in self.Ax})
-
-    def arcs_week_subset(self, week='single'):
+    def arcs_week_subset(self):
         """
         get arc service time according to the week
         :param week: rule of arcs subset definition
-        :return: set of arcs, which belongs to the week 𝑘 (𝑘 =[0, 1] for 'single' week, k=0 for 'double')
+        :return: set of arcs, which belongs to the week 𝑘 (𝑘 =[0, 1] for 'single' week, 𝑘 =[0, 1, 2] for 'double')
         """
         result = {}
-        if week == 'single' and self.n_weeks > 1:
-            for k in self.week_num:
-                for (i, j, t) in self.arcs_dep:
-                    if t < self.time_limit[k] and (k == 0 or self.time_limit[k - 1] < t):
-                        result[k, i, j, t] = (self.time_limit[k] - t
-                                              if t + self.t_a[i, j, t] > self.time_limit[k] else self.t_a[i, j, t])
-                        if t + self.t_a[i, j, t] > self.time_limit[k]:
-                            result[self.week_num[k - 1], i, j, t] = t + self.t_a[i, j, t] - self.time_limit[k]
-        else:
-            result = {(0, i, j, t): self.t_a[i, j, t] for (i, j, t) in self.arcs_dep}
+        for k in self.week_num:
+            for (i, j, t) in self.arcs_dep:
+                if t < self.time_limit[k] and (k == 0 or self.time_limit[k - 1] < t):
+                    result[k, i, j, t] = (self.time_limit[k] - t
+                                          if t + self.t_a[i, j, t] > self.time_limit[k] else self.t_a[i, j, t])
+                    if t + self.t_a[i, j, t] > self.time_limit[k]:
+                        result[self.week_num[k - 1], i, j, t] = t + self.t_a[i, j, t] - self.time_limit[k]
         return tupledict(result)
 
     def arcs_network_creator(self):
@@ -144,7 +112,7 @@ class ModelData:
         arcs_dep = []
         arcs_arr = []
         for cur_deps in zip(self.departures[0], self.departures[1]):
-            temp = route_sim(cur_deps, self.distances, self.cycle_length)
+            temp = route_sim(cur_deps, self.distances, self.n_weeks)
             arcs_dep += temp[0]
             arcs_arr += temp[1]
         return tuplelist(arcs_dep), tuplelist(arcs_arr)
@@ -161,18 +129,6 @@ class ModelData:
         result = self.split_data(case_db.loc[[self.case_id], cell_name].values[0])
         return tuplelist([result,]) if isinstance(result, int) else tuplelist(result)
 
-    '''
-    @staticmethod
-    def get_last_elem(parameter):
-        """
-        returns last element of list or number, if input is integer
-        :param parameter:
-        :return:
-        """
-        return parameter if isinstance(parameter, int) else parameter[-1]
-
-    '''
-
     @staticmethod
     def split_data(data):
         """
@@ -187,9 +143,9 @@ class ModelData:
         else:
             return [int(i) for i in data.split(';')]
 
-
-def arc_param(arcs, param):
-    return tupledict({(i, j, t): param[min(i, j)] for (i, j, t) in arcs})
+    @staticmethod
+    def arc_param(arcs, param):
+        return tupledict({(i, j, t): param[min(i, j)] for (i, j, t) in arcs})
 
 
 def route_sim(departures, distances, n_weeks):
@@ -240,26 +196,6 @@ def find_closest_arrive(a_, arcs_arr, arc_len, rest_time, time_limit):  # 11 or 
     return result
 
 
-def find_closest_depart(a_, arcs_dep, rest_time, time_limit):  # 11 or 24 relax time duration
-    result = []
-    time = a_[2] + rest_time
-    t_closest = 2 * time_limit
-    for a in arcs_dep:
-        if a[0] == a_[1]:
-            if a[2] >= time:
-                t_between = a[2] - time
-            else:
-                t_between = a[2] - time + time_limit
-            if t_between <= t_closest:
-                if t_between < t_closest:
-                    t_closest = t_between
-                    result = [a]
-                else:
-                    result.append(a)
-    # print('rel_time', rest_time, 'ans', a_, '==', result)
-    return result
-
-
 def result_csv(m: Model):
     """
     Catches variables values from model optimization results. Creates a csv-type file with determined columns
@@ -305,8 +241,28 @@ def get_var_values(m: Model):
                 elif i == 2:
                     result[i].append(temp[:-1] + ['-', temp[-1], v.varName, v.X])
                 else:
-                    result[i].append(temp + ['-', '-', '-', v.varName, v.X])
+                    result[i].append([temp[-1]] + ['-', '-', '-', v.varName, v.X])
     return result
+
+
+def get_driver_route(results, driver_count):
+    driver_num = [i for i in range(driver_count)]
+    # print(driver_num)
+    xy_arcs = results[0] + results[1]
+    # print(xy_arcs)
+    result = [[] for _ in driver_num]
+    idles = [[] for _ in driver_num]
+    for d in driver_num:
+        for elem in xy_arcs:
+            if elem[0] == d:
+                result[d].append(elem[1:4])
+
+        for elem in results[2]:
+            if elem[0] == d:
+                idles[d].append(elem[:2] + [elem[3]])
+    # print(result)
+    # print(idles)
+    return result, idles
 
 
 def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None):
@@ -365,7 +321,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
     else:
         plt.figure()
         ax = plt.axes()
-        plt.title('Транспортная сеть')
+        plt.title('Транспортная сеть - сценарий ' + case_id)
         color = 'blue'
         plot_iterator(arcs_list)
         ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
@@ -377,23 +333,3 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         # ax.set_ylim(bottom=-1)
         plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
         plt.show()
-
-
-def get_driver_route(results, driver_count):
-    driver_num = [i for i in range(driver_count)]
-    # print(driver_num)
-    xy_arcs = results[0] + results[1]
-    # print(xy_arcs)
-    result = [[] for _ in driver_num]
-    idles = [[] for _ in driver_num]
-    for d in driver_num:
-        for elem in xy_arcs:
-            if elem[0] == d:
-                result[d].append(elem[1:4])
-
-        for elem in results[2]:
-            if elem[0] == d:
-                idles[d].append(elem[:2] + [elem[3]])
-    # print(result)
-    # print(idles)
-    return result, idles
