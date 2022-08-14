@@ -212,7 +212,14 @@ def result_csv(m: Model):
         for varinfo in varInfo:
             wr.writerows(varinfo)
 
-    return varInfo
+    hired_drivers = []
+    for v in m.getVars():
+        if 'b_' in v.varName and v.X > 0:
+            temp = v.varName.split('_')
+            temp = [int(i) for i in temp[1:]]
+            hired_drivers.append(temp[-1])
+
+    return varInfo, hired_drivers
 
 
 def read_sol_csv(filename='10737_1.csv'):
@@ -244,27 +251,25 @@ def get_var_values(m: Model):
     return result
 
 
-def get_driver_route(results, driver_count):
-    driver_num = [i for i in range(driver_count)]
+def get_driver_route(results, driver_num):
     # print(driver_num)
     xy_arcs = results[0] + results[1]
     # print(xy_arcs)
     result = [[] for _ in driver_num]
     idles = [[] for _ in driver_num]
-    for d in driver_num:
+    for (i, d) in enumerate(driver_num):
         for elem in xy_arcs:
             if elem[0] == d:
-                result[d].append(elem[1:4])
-
+                result[i].append(elem[1:4])
         for elem in results[2]:
             if elem[0] == d:
-                idles[d].append(elem[:2] + [elem[3]])
+                idles[i].append(elem[:2] + [elem[3]])
     # print(result)
     # print(idles)
     return result, idles
 
 
-def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None):
+def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None, hired_drivers = None):
     """
     Arc network plotting function. Shows the generated Arcs set on the timeline.
     :return: None
@@ -302,7 +307,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         for arcs, idle in zip(arcs_list, idle_nodes):
             plt.figure()
             ax = plt.axes()
-            plt.title("Маршрут водителя {0}".format(d))
+            plt.title("Маршрут водителя {0}".format(hired_drivers[d]))
             color = '#%06X' % random.randint(0, 0xFFFFFF)
             plot_iterator(arcs)
             plot_iterator(idle, is_idles=True)

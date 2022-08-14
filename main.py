@@ -81,9 +81,9 @@ if __name__ == '__main__':
         # save the solution output
         m.write('nfp.sol')
         # write a csv file
-        results = result_csv(m)
-        arc2driver, node2driver = get_driver_route(results, int(m.getObjective().getValue()))
-        plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id,  solved=True, idle_nodes=node2driver)
+        results, hired_drivers = result_csv(m)
+        arc2driver, node2driver = get_driver_route(results, hired_drivers)
+        plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id,  solved=True, idle_nodes=node2driver, hired_drivers = hired_drivers)
     elif m.Status != GRB.INFEASIBLE:
         print('Optimization was stopped with status %d' % m.Status)
     else:
