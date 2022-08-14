@@ -69,7 +69,6 @@ class ModelData:
         # uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
         uniq_time_set = set([item[2] for item in self.arcs_dep])
         self.t_set = tuplelist(sorted(uniq_time_set))
-        self.t_arr_set = tuplelist(sorted(set([item[2] for item in self.arcs_arr])))
         print('t_set', self.t_set)
 
         # A_a_x and A_a_y set

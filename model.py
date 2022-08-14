@@ -232,17 +232,14 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
 
     # Create weekly equality constraints
     weekly_equality_constr_x = tupledict(
-        {(d, i1, j1, k1, k2): (m.addConstr(v.x_da[d, i1, j1, t1] == v.x_da[d, i2, j2, t2],
-                        name="weekly_equality_constraints_x_{0}_{1}_{2}_{3}_{4}".format(d, i1, j1, k1, k2))) for (k2, i2, j2, t2) in data.Akw
-             for (k1, i1, j1, t1) in data.Akw if (k1 + 1 == k2 and i1 == i2 and j1 == j2) for d in
-         data.drivers for k1 in data.week_num[:-1]})
+        {(d, i, j, t, k1): (m.addConstr(v.x_da[d, i, j, t] == v.x_da[d, i, j, t + 168 * k1],
+                        name="weekly_equality_constraints_x_{0}_{1}_{2}_{3}".format(d, i, j, t, k1))) for (i, j, t) in data.arcs_dep
+             for d in data.drivers for k1 in data.week_num[1:] if t <= 168})
 
     weekly_equality_constr_y = tupledict(
-        {(d, i1, j1, k1, k2): (m.addConstr(v.y_da[d, i1, j1, t1] == v.y_da[d, i2, j2, t2],
-                        name="weekly_equality_constraints_y_{0}_{1}_{2}_{3}_{4}".format(d, i1, j1, k1, k2))) for (k2, i2, j2, t2) in data.Akw
-             for (k1, i1, j1, t1) in data.Akw if (k1 + 1 == k2 and i1 == i2 and j1 == j2) for d in
-         data.drivers for k1 in data.week_num[:-1]})
-
+        {(d, i, j, t, k1): (m.addConstr(v.y_da[d, i, j, t] == v.y_da[d, i, j, t + 168 * k1],
+                        name="weekly_equality_constraints_y_{0}_{1}_{2}_{3}".format(d, i, j, t, k1))) for (i, j, t) in data.arcs_dep
+             for d in data.drivers for k1 in data.week_num[1:] if t <= 168})
 
 
 def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
