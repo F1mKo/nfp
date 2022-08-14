@@ -4,7 +4,10 @@ import csv
 import random
 
 plt.rcParams["font.family"] = "Times New Roman"
-plt.rcParams.update({'font.size': 14})
+plt.rcParams.update({'font.size': 14,
+                     'font.family': 'Times New Roman',
+                     'mathtext.fontset': 'cm'}
+                    )
 
 
 class ModelData:
@@ -17,10 +20,10 @@ class ModelData:
 
         # catch the case run parameters
         self.case_id = config['scenario_number']
-        self.cycle_length = config['cycle_length']
+        self.n_weeks = config['n_weeks'] + 1
 
         # calculation of time horizon length corresponding to cycle length
-        self.n_weeks = self.cycle_length // 7
+        self.cycle_length = 7 * self.n_weeks
 
         if self.n_weeks > 1:
             self.week_num = tuplelist(range(self.n_weeks))
@@ -67,7 +70,7 @@ class ModelData:
 
         # unique time set T
         # uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
-        uniq_time_set = set([item[2] for item in self.arcs_dep] + [item[2] for item in self.arcs_arr])
+        uniq_time_set = set([item[2] for item in self.arcs_dep])
         self.t_set = tuplelist(sorted(uniq_time_set))
         print('t_set', self.t_set)
 
@@ -189,27 +192,28 @@ def arc_param(arcs, param):
     return tupledict({(i, j, t): param[min(i, j)] for (i, j, t) in arcs})
 
 
-def route_sim(departures, distances, cycle_len):
+def route_sim(departures, distances, n_weeks):
     dep_forward = []
     dep_backward = []
     n = len(distances)
-    time_limit = 24 * cycle_len
+    time_limit = 24 * 7
     arr_forward = []
     arr_backward = []
-    for i in range(cycle_len):
-        dep_forward_time = departures[0] + i * 24
-        dep_backward_time = departures[1] + i * 24
-        dep_forward.append([0, 1, dep_forward_time % time_limit])
-        dep_backward.append([n, n - 1, dep_backward_time % time_limit])
-        arr_forward.append([0, 1, (dep_forward_time + distances[0]) % time_limit])
-        arr_backward.append([n, n - 1, (dep_backward_time + distances[-1]) % time_limit])
-        for j in range(1, n):
-            dep_forward_time += distances[j - 1]
-            dep_backward_time += distances[n - j]
-            dep_forward.append([j, j + 1, dep_forward_time % time_limit])
-            dep_backward.append([n - j, n - j - 1, dep_backward_time % time_limit])
-            arr_forward.append([j, j + 1, (dep_forward_time + distances[j]) % time_limit])
-            arr_backward.append([n - j, n - j - 1, (dep_backward_time + distances[n - j - 1]) % time_limit])
+    for k in range(n_weeks):
+        for i in range(7):
+            dep_forward_time = departures[0] + i * 24
+            dep_backward_time = departures[1] + i * 24
+            dep_forward.append([0, 1, dep_forward_time % time_limit + time_limit * k])
+            dep_backward.append([n, n - 1, dep_backward_time % time_limit + time_limit * k])
+            arr_forward.append([0, 1, (dep_forward_time + distances[0]) % + time_limit * k])
+            arr_backward.append([n, n - 1, (dep_backward_time + distances[-1]) % time_limit + time_limit * k])
+            for j in range(1, n):
+                dep_forward_time += distances[j - 1]
+                dep_backward_time += distances[n - j]
+                dep_forward.append([j, j + 1, dep_forward_time % time_limit + time_limit * k])
+                dep_backward.append([n - j, n - j - 1, dep_backward_time % time_limit + time_limit * k])
+                arr_forward.append([j, j + 1, (dep_forward_time + distances[j]) % time_limit + time_limit * k])
+                arr_backward.append([n - j, n - j - 1, (dep_backward_time + distances[n - j - 1]) % time_limit + time_limit * k])
     return dep_forward + dep_backward, arr_forward + arr_backward
 
 

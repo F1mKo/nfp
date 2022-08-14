@@ -11,6 +11,7 @@ class ModelVars:
         self.y_da = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 serves arc 𝑎 ∈ 𝐴 and have a weekly rest on the end node of arc, 0 otherwise
         self.s_dit = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is located in node 𝑖 ∈ 𝑁 at time 𝑡, 0 otherwise
         self.b_d = tupledict()  # binary variable, equals to 1 if driver 𝑑 ∈ 𝐷 is selected, 0 otherwise
+        self.start_d = tupledict()
         self.w_work_d = tupledict()  # driver weekly work duration
         self.ww_work_d = tupledict()  # driver double week work duration
 
@@ -36,6 +37,10 @@ def add_variables(m: Model, data: ModelData, v: ModelVars):
     v.s_dit = tupledict({(d, i, t): m.addVar(vtype=GRB.BINARY,
                                              name="s_{0}_{1}_{2}".format(d, i, t))
                          for d in data.drivers for i in data.nodes for t in data.t_set})
+
+    v.start_d = tupledict({(d, i, j, 0): m.addVar(vtype=GRB.BINARY,
+                                                  name="start_{0}_{1}_{2}_{3}".format(d, i, j, 0))
+                           for d in data.drivers for (i, j, t) in data.arcs_dep if t == 0})
 
     # driver single/double week work duration
     v.w_work_d = tupledict(
@@ -65,9 +70,15 @@ def add_driver_movement_basic(m: Model, data: ModelData, v: ModelVars):
                                              quicksum(v.s_dit[d, i, data.t_set[k - 1]] for k in range(len(data.t_set))
                                                       if data.t_set[k] == t)
                                              + quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[i, j, t])
-                                             + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[i, j, t]),
+                                             + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[i, j, t]) +
+                                             (v.start_d[d, i, j, t] if t == 0 else 0),
                                              name="driver_movement_{0}_{1}_{2}_{3}".format(d, i, j, t))
                              for d in data.drivers for (i, j, t) in data.arcs_dep})
+
+    d_start_constr = tupledict({d: m.addConstr(
+        v.start_d.sum(d, '*', '*', '*') == v.b_d[d],
+        name="driver_selection_definition_{0}".format(d))
+        for d in data.drivers})
 
 
 def add_driver_movement_alt_logic(m: Model, data: ModelData, v: ModelVars):
@@ -229,10 +240,10 @@ def add_symmetry_breaking_constr(m: Model, data: ModelData, v: ModelVars):
     """
     # Create driver work_time symmetry breaking constraints
     symmetry_breaking_wwd_constraints = {
-         data.drivers[i]: m.addConstr(v.w_work_d[0, data.drivers[i + 1]] <= v.w_work_d[0, data.drivers[i]],
-                                      name="symmetry_breaking_wwd_constraints_{0}".format(
-                                          data.drivers[i]))
-         for i in range(len(data.drivers) - 1)}
+        data.drivers[i]: m.addConstr(v.w_work_d[0, data.drivers[i + 1]] <= v.w_work_d[0, data.drivers[i]],
+                                     name="symmetry_breaking_wwd_constraints_{0}".format(
+                                         data.drivers[i]))
+        for i in range(len(data.drivers) - 1)}
     # Create driver selection symmetry breaking constraints
     symmetry_breaking_ds_constraints = {
         data.drivers[i]: m.addConstr(v.b_d[data.drivers[i]] >= v.b_d[data.drivers[i + 1]],

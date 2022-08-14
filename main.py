@@ -10,7 +10,7 @@ import random
 config = {'input_file': 'scenarios.xlsx',
           'sheet_name': 'augmentation',
           'scenario_number': '10737_1',
-          'cycle_length': 7}  # settings
+          'n_weeks': 1}  # settings
 
 
 def parse_data(input_file, sheet_name):
