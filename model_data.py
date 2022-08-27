@@ -47,8 +47,8 @@ class ModelData:
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
 
         # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, 5 * self.n)) if self.n >= 3 else \
-            tuplelist(d for d in range(0, 4 * self.n ** 2))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 5 * self.nodes)) if self.nodes >= 3 else \
+            tuplelist(d for d in range(0, 4 * self.nodes ** 2))  # set of drivers
 
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
@@ -71,13 +71,24 @@ class ModelData:
         self.t_set = tuplelist(sorted(uniq_time_set))
         print('t_set', self.t_set)
 
+        self.possible_arc = calc_possible_arcs(self.nodes, self.arcs_dep)
+
         # A_a_x and A_a_y set
+        #self.Aax = tupledict(
+        #    {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.time_horizon)
+        #     for (i, j, t) in
+        #     self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with daily rest
+        #self.Aay = tupledict(
+        #    {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.time_horizon)
+        #     for (i, j, t) in
+        #     self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
+
         self.Aax = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 11, self.time_horizon)
+            {(i, j, t): find_closest_arrive_mod((i, j, t), self.possible_arc, self.distances, 11, self.time_horizon)
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with daily rest
         self.Aay = tupledict(
-            {(i, j, t): find_closest_arrive((i, j, t), self.arcs_arr, self.distances, 24, self.time_horizon)
+            {(i, j, t): find_closest_arrive_mod((i, j, t), self.possible_arc, self.distances, 24, self.time_horizon)
              for (i, j, t) in
              self.arcs_dep})  # set of arcs with the closest arrival time to departure arc a with weekly rest
 
@@ -170,6 +181,44 @@ def route_sim(departures, distances, n_weeks):
                 arr_forward.append([j, j + 1, (dep_forward_time + distances[j]) % time_limit + time_limit * k])
                 arr_backward.append([n - j, n - j - 1, (dep_backward_time + distances[n - j - 1]) % time_limit + time_limit * k])
     return dep_forward + dep_backward, arr_forward + arr_backward
+
+
+def calc_possible_arcs(nodes, arcs_dep):
+    possible_route = [[] for node in nodes]
+    for node in nodes:
+        for a in arcs_dep:
+            if a[1] == node:
+                possible_route[node].append(a)
+    #            arcs_dep.remove(a)
+    return possible_route
+
+
+def find_closest_arrive_mod(a_dep, possible_arc, arc_len, rest_time, time_limit):  # 11 or 24 relax time duration
+    result = []
+    time = a_dep[2]
+    t_closest = 2 * time_limit
+    for a in possible_arc[a_dep[0]]:
+        arrival_time = (a[2] + arc_len[min(a[0], a[1])] + rest_time) % time_limit
+        if arrival_time <= time:
+            t_between = time - arrival_time
+            if t_between <= t_closest:
+                if t_between < t_closest:
+                    t_closest = t_between
+                    result = [a]
+                else:
+                    result.append(a)
+        else:
+            continue
+            t_between = time - arrival_time + time_limit
+            if t_between <= t_closest:
+                if t_between < t_closest:
+                    t_closest = t_between
+                    result = [a]
+                else:
+                    result.append(a)
+
+    # print('rel_time', rest_time, 'ans', a_, '==', result)
+    return result
 
 
 def find_closest_arrive(a_, arcs_arr, arc_len, rest_time, time_limit):  # 11 or 24 relax time duration

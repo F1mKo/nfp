@@ -76,7 +76,7 @@ if __name__ == '__main__':
     m.write('nfp.lp')
     m.optimize()
 
-    if m.Status == GRB.OPTIMAL:
+    if m.Status == GRB.OPTIMAL or m.Status == GRB.TIME_LIMIT:
         print('Optimal objective: %g' % m.ObjVal)
         # save the solution output
         m.write('nfp.sol')
