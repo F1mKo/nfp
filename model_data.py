@@ -6,8 +6,7 @@ import random
 plt.rcParams["font.family"] = "Times New Roman"
 plt.rcParams.update({'font.size': 14,
                      'font.family': 'Times New Roman',
-                     'mathtext.fontset': 'cm'}
-                    )
+                     'mathtext.fontset': 'cm'})
 
 
 class ModelData:
@@ -32,6 +31,7 @@ class ModelData:
 
         print('n_weeks', self.n_weeks)
         print('time_limit', self.time_limit)
+
         # catch distances between nodes i and i+1
         self.distances = self.cell_reader(case_db, 'Участки')
         print('dist', self.distances)
@@ -47,8 +47,8 @@ class ModelData:
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
 
         # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, 5 * self.nodes)) if self.nodes >= 3 else \
-            tuplelist(d for d in range(0, 4 * self.nodes ** 2))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 5 * (self.n + 1))) if (self.n + 1) >= 3 else \
+            tuplelist(d for d in range(0, 4 * (self.n + 1) ** 2))  # set of drivers
 
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
@@ -198,7 +198,7 @@ def find_closest_arrive_mod(a_dep, possible_arc, arc_len, rest_time, time_limit)
     time = a_dep[2]
     t_closest = 2 * time_limit
     for a in possible_arc[a_dep[0]]:
-        arrival_time = (a[2] + arc_len[min(a[0], a[1])] + rest_time) % time_limit
+        arrival_time = a[2] + arc_len[min(a[0], a[1])] + rest_time
         if arrival_time <= time:
             t_between = time - arrival_time
             if t_between <= t_closest:
@@ -367,7 +367,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
             plt.ylim([-1, time_horizon + 1])
             plt.yticks(range(0, time_horizon + 1, 24))
             # ax.set_ylim(bottom=-1)
-            plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(d), format="pdf")
+            plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
             plt.show()
             d += 1
             # break

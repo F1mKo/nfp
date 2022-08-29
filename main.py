@@ -2,14 +2,14 @@ from datetime import datetime
 import os
 import pandas as pd
 from gurobipy import Model, GRB
-from model_data import ModelData, plot_network, result_csv, get_driver_route, read_sol_csv
-from model import ModelVars, add_variables, add_driver_movement_basic, add_driver_movement_alt_logic, add_week_work_constraints, \
-    add_symmetry_breaking_constr, add_objective, constraint_creator, fix_arcs
+from model_data import ModelData, plot_network, result_csv, get_driver_route
+from nfp_model import ModelVars, add_variables, constraint_creator
 import random
 
 config = {'input_file': 'scenarios.xlsx',
           'sheet_name': 'augmentation',
-          'scenario_number': '10737_1',
+          'model_type': 'NFP',
+          'scenario_number': '10408_2',
           'n_weeks': 1}  # settings
 
 
@@ -48,14 +48,15 @@ if __name__ == '__main__':
     case = parse_data(config['input_file'], config['sheet_name'])
     random.seed(0)
     # Declare and initialize model
-    m = Model('NFP')
+    m = Model(config['model_type'])
     data = ModelData(case, config)
     v = ModelVars()
+    start_node = True
 
     plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, data.case_id)
 
-    add_variables(m, data, v)
-    constraint_creator(m, data, v, baseline=True)
+    add_variables(m, data, v, start_node)
+    constraint_creator(m, data, v, True, start_node)
     # constraint_creator(m, data, v, baseline=False)
 
     # fix previous solution to search infeasibility
