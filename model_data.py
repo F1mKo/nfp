@@ -318,7 +318,7 @@ def get_driver_route(results, driver_num):
     return result, idles
 
 
-def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None, hired_drivers = None):
+def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None, hired_drivers=None):
     """
     Arc network plotting function. Shows the generated Arcs set on the timeline.
     :return: None
@@ -386,3 +386,53 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         # ax.set_ylim(bottom=-1)
         plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
         plt.show()
+
+
+def gantt_diagram(arcs_list, dist, t_set, time_horizon, case_id, idle_nodes=None, hired_drivers=None):
+
+    def plot_iterator(arcs, is_idles=False):
+        if not is_idles:
+            for a in arcs:
+                # ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+                if a[2] + dist[min(a[0], a[1])] <= time_horizon:
+                    gnt.broken_barh([(a[2], dist[min(a[0], a[1])])], (min(a[0], a[1]) * 1 + 1/4, 1/2), facecolors=color[a[0]-a[1]])
+                else:
+                    gnt.broken_barh([(a[2], time_horizon - a[2])], (min(a[0], a[1]) * 1 + 1/4, 1/2), facecolors=color[a[0]-a[1]])
+                    # gnt.plot([a[0], part_route_node], [a[2], time_horizon], color)
+                    gnt.broken_barh([(0, (a[2] + dist[min(a[0], a[1])]) % time_horizon)], (min(a[0], a[1]) * 1 + 1/4, 1/2), facecolors=color[a[0]-a[1]])
+                    # gnt.plot([part_route_node, a[1]], [0, (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
+        else:
+            for i in arcs:
+                # print(i)
+                if i[2] == t_set[-1]:
+                    gnt.broken_barh([(i[2], time_horizon - i[2])],
+                                    (i[1] * 1 - 1 / 5, 2 / 5), facecolors=color[0])
+                    gnt.broken_barh([(0, t_set[0])],
+                                    (i[1] * 1 - 1 / 5, 2 / 5), facecolors=color[0])
+                else:
+                    tk = sum(t_set[k + 1] for k in range(len(t_set))
+                             if t_set[k] == i[2] and k < len(t_set) - 1)
+                    gnt.broken_barh([(i[2], tk - i[2])],
+                                    (i[1] * 1 - 1 / 5, 2 / 5), facecolors=color[0])
+
+    d = 0
+    for arcs, idle in zip(arcs_list, idle_nodes):
+        fig, gnt = plt.subplots()
+        gnt.grid(True)
+        plt.title("Маршрут водителя {0}".format(hired_drivers[d]))
+        gnt.set_xlim(-1, time_horizon + 1)
+        gnt.set_ylim(0 - 1 / 2 , 1 * len(dist) + 1 / 2)
+        gnt.set_xlabel('Время, час')
+        gnt.set_ylabel('Точки смены экипажа ' + r'$(N)$')
+        gnt.set_xticks(range(0, time_horizon + 1, 24))
+        gnt.set_yticks([i * 1 for i in range(len(dist) + 1)])
+        gnt.set_xticklabels(range(0, time_horizon + 1, 24))
+        gnt.set_yticklabels(range(len(dist) + 1))
+
+        color = {-1: 'red', 1: 'blue', 0: 'gray'}
+        plot_iterator(arcs)
+        plot_iterator(idle, is_idles=True)
+        # ax.set_ylim(bottom=-1)
+        plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
+        plt.show()
+        d += 1
