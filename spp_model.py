@@ -1,6 +1,5 @@
 from gurobipy import Model, tupledict, GRB, quicksum
 from model_data import ModelData
-from itertools import combinations
 
 
 class SPPModelVars:
@@ -11,7 +10,7 @@ class SPPModelVars:
         self.x_i = tupledict()  # binary variable, equals to 1 if duty 𝑖 ∈ 𝐷 is selected as optimal, 0 otherwise
 
 
-def add_variables(m: Model, data: ModelData, v: SPPModelVars, start_node = True):
+def add_variables(m: Model, data: ModelData, v: SPPModelVars):
     """
     Defines variables in model according to data.
     :param m: Model class instance

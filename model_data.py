@@ -154,11 +154,24 @@ class ModelData:
             return [int(i) for i in data.split(';')]
 
     @staticmethod
-    def arc_param(arcs, param):
-        return tupledict({(i, j, t): param[min(i, j)] for (i, j, t) in arcs})
+    def arc_param(arcs, parameter):
+        """
+        Simple map function to setup parameter values
+        :param arcs: set of arcs to be served
+        :param parameter: set of values corresponding to each node
+        :return: parameter values corresponding to each arc
+        """
+        return tupledict({(i, j, t): parameter[min(i, j)] for (i, j, t) in arcs})
 
 
 def route_sim(departures, distances, n_weeks):
+    """
+    Generation of arcs forward/ backward sets to be served
+    :param departures: time of departure from route ends
+    :param distances: time length corresponding to arc
+    :param n_weeks: number of weeks to be generated
+    :return: arrays of arcs to be served
+    """
     dep_forward = []
     dep_backward = []
     n = len(distances)
@@ -184,6 +197,12 @@ def route_sim(departures, distances, n_weeks):
 
 
 def calc_possible_arcs(nodes, arcs_dep):
+    """
+    sort possible to serve arc for each node
+    :param nodes: nodes
+    :param arcs_dep: set of arcs to be served
+    :return: array of possible arc sets corresponding to each node
+    """
     possible_route = [[] for node in nodes]
     for node in nodes:
         for a in arcs_dep:
@@ -193,10 +212,19 @@ def calc_possible_arcs(nodes, arcs_dep):
     return possible_route
 
 
-def find_closest_arrive_mod(a_dep, possible_arc, arc_len, rest_time, time_limit):  # 11 or 24 relax time duration
+def find_closest_arrive_mod(a_dep, possible_arc, arc_len, rest_time, time_horizon):  # 11 or 24 relax time duration
+    """
+    ***Cycled version*** Returns the closest arcs set to departure of arc a_ with taking into account rest time
+    :param a_dep: given arc
+    :param possible_arc: set of arcs to be selected as the closest
+    :param arc_len: set of distances related to arc
+    :param rest_time: rest time before departure on given arc a_
+    :param time_horizon: time horizon
+    :return:
+    """
     result = []
     time = a_dep[2]
-    t_closest = 2 * time_limit
+    t_closest = 2 * time_horizon
     for a in possible_arc[a_dep[0]]:
         arrival_time = a[2] + arc_len[min(a[0], a[1])] + rest_time
         if arrival_time <= time:
@@ -208,39 +236,44 @@ def find_closest_arrive_mod(a_dep, possible_arc, arc_len, rest_time, time_limit)
                 else:
                     result.append(a)
         else:
-            continue
-            t_between = time - arrival_time + time_limit
+            continue # comment it to make the function output to be time-cycled
+            t_between = time - arrival_time + time_horizon
             if t_between <= t_closest:
                 if t_between < t_closest:
                     t_closest = t_between
                     result = [a]
                 else:
                     result.append(a)
-
-    # print('rel_time', rest_time, 'ans', a_, '==', result)
     return result
 
 
-def find_closest_arrive(a_, arcs_arr, arc_len, rest_time, time_limit):  # 11 or 24 relax time duration
+def find_closest_arrive(a_, arcs_arr, arc_len, rest_time, time_horizon):  # 11 or 24 relax time duration
+    """
+    ***Cycled version*** Returns the closest arcs set to departure of arc a_ with taking into account rest time
+    :param a_: given arc
+    :param arcs_arr: set of arcs to be selected as the closest
+    :param arc_len: set of distances related to arc
+    :param rest_time: rest time before departure on given arc a_
+    :param time_horizon: time horizon
+    :return:
+    """
     result = []
     time = a_[2] - rest_time
-    t_closest = 2 * time_limit
+    t_closest = 2 * time_horizon
     for a in arcs_arr[::-1]:
         if a[1] == a_[0]:
             if a[2] <= time:
                 t_between = time - a[2]
             else:
-                t_between = time - a[2] + time_limit
+                t_between = time - a[2] + time_horizon
             if t_between <= t_closest:
                 arc_dep_time = (a[2] - arc_len[min(a[0], a[1])]) if a[2] >= arc_len[min(a[0], a[1])] else \
-                    (a[2] - arc_len[min(a[0], a[1])] + time_limit)
+                    (a[2] - arc_len[min(a[0], a[1])] + time_horizon)
                 if t_between < t_closest:
                     t_closest = t_between
                     result = [[a[0], a[1], arc_dep_time]]
                 else:
                     result.append([a[0], a[1], arc_dep_time])
-
-    # print('rel_time', rest_time, 'ans', a_, '==', result)
     return result
 
 
@@ -248,11 +281,10 @@ def result_csv(m: Model):
     """
     Catches variables values from model optimization results. Creates a csv-type file with determined columns
     :param m: Model class instance
-    :return: None
+    :return: csv-type file and array of hired driver numbers
     """
     columns = ['Driver', 'i', 'j', 'time', 'variable', 'value']
     varInfo = get_var_values(m)
-    # print(varInfo)
 
     # Write to csv
     with open('model_out.csv', 'w') as my_file:
@@ -272,6 +304,11 @@ def result_csv(m: Model):
 
 
 def read_sol_csv(filename='10737_1.csv'):
+    """
+    Read existing scenario solution
+    :param filename: name of csv file
+    :return: optimal solution data
+    """
     result = []
     with open(filename, newline='\n') as my_file:
         for line in csv.reader(my_file, delimiter=',', quotechar='"'):
@@ -280,6 +317,11 @@ def read_sol_csv(filename='10737_1.csv'):
 
 
 def get_var_values(m: Model):
+    """
+    Get variables from the optimal solution
+    :param m: model to extract solution data
+    :return: optimal solution data
+    """
     variable_list = ['x_', 'y_', 's_', 'b_', 'dwwd', 'd2wwd']
     result = [[] for _ in range(len(variable_list))]
     for v in m.getVars():
@@ -301,6 +343,12 @@ def get_var_values(m: Model):
 
 
 def get_driver_route(results, driver_num):
+    """
+    Get driver optimal routes
+    :param results: array with optimal solution data
+    :param driver_num: array with hired driver numbers
+    :return: drivers routes and idles
+    """
     # print(driver_num)
     xy_arcs = results[0] + results[1]
     # print(xy_arcs)
@@ -320,14 +368,21 @@ def get_driver_route(results, driver_num):
 
 def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None, hired_drivers=None):
     """
-    Arc network plotting function. Shows the generated Arcs set on the timeline.
+    Arc network plotting function. Shows the generated Arcs grid or optimal driver routes set on the timeline.
+    :param arcs_list: generated Arcs set or optimal driver arc subsets to serve
+    :param dist: set of arc time durations
+    :param t_set: time grid
+    :param time_horizon: time horison
+    :param case_id: case number to plot and files export
+    :param solved: bool value to control plotting
+    :param idle_nodes: driver idle timelines
+    :param hired_drivers: list of hired drivers
     :return: None
     """
 
     def plot_iterator(arcs, is_idles=False):
         if not is_idles:
             for a in arcs:
-                # ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
                 if a[2] + dist[min(a[0], a[1])] <= time_horizon:
                     ax.plot([a[0], a[1]], [a[2], (a[2] + dist[min(a[0], a[1])])], color)
                 else:
@@ -341,14 +396,12 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
                     ax.plot([part_route_node, a[1]], [0, (a[2] + dist[min(a[0], a[1])]) % time_horizon], color)
         else:
             for i in arcs:
-                # print(i)
                 if i[2] == t_set[-1]:
                     ax.plot([i[1], i[1]], [i[2], time_horizon], color)
                     ax.plot([i[1], i[1]], [0, t_set[0]], color)
                 else:
                     tk = sum(t_set[k + 1] for k in range(len(t_set))
                              if t_set[k] == i[2] and k < len(t_set) - 1)
-                    # print(tk)
                     ax.plot([i[1], i[1]], [i[2], tk], color)
 
     if solved:
@@ -366,11 +419,9 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
             plt.xticks(range(len(dist)+1))
             plt.ylim([-1, time_horizon + 1])
             plt.yticks(range(0, time_horizon + 1, 24))
-            # ax.set_ylim(bottom=-1)
             plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
             plt.show()
             d += 1
-            # break
     else:
         plt.figure()
         ax = plt.axes()
@@ -383,13 +434,22 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         plt.xticks(range(len(dist)+1))
         plt.ylim([-1, time_horizon + 1])
         plt.yticks(range(0, time_horizon + 1, 24))
-        # ax.set_ylim(bottom=-1)
         plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
         plt.show()
 
 
 def gantt_diagram(arcs_list, dist, t_set, time_horizon, case_id, idle_nodes=None, hired_drivers=None):
-
+    """
+    Drivers Gantt diagram plotting function. Shows the optimal driver schedule on the timeline.
+    :param arcs_list: generated Arcs set or optimal driver arc subsets to serve
+    :param dist: set of arc time durations
+    :param t_set: time grid
+    :param time_horizon: time horison
+    :param case_id: case number to plot and files export
+    :param idle_nodes: driver idle timelines
+    :param hired_drivers: list of hired drivers
+    :return: None
+    """
     def plot_iterator(arcs, is_idles=False):
         if not is_idles:
             for a in arcs:
@@ -432,7 +492,6 @@ def gantt_diagram(arcs_list, dist, t_set, time_horizon, case_id, idle_nodes=None
         color = {-1: 'red', 1: 'blue', 0: 'gray'}
         plot_iterator(arcs)
         plot_iterator(idle, is_idles=True)
-        # ax.set_ylim(bottom=-1)
         plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
         plt.show()
         d += 1

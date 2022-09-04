@@ -9,7 +9,7 @@ import random
 config = {'input_file': 'scenarios.xlsx',
           'sheet_name': 'augmentation',
           'model_type': 'NFP',
-          'scenario_number': '10408_2',
+          'scenario_number': '10737_2',
           'n_weeks': 1}  # settings
 
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     m = Model(config['model_type'])
     data = ModelData(case, config)
     v = ModelVars()
-    start_node = True
+    start_node = True # если True, определяет переменную start_d как нахождение водителя в узле i в t_set[0], иначе start_d - ребро a с отправлением в t_set[0]
 
     plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, data.case_id)
 
