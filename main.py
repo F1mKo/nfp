@@ -9,7 +9,7 @@ import random
 config = {'input_file': 'scenarios.xlsx',
           'sheet_name': 'augmentation',
           'model_type': 'NFP',
-          'scenario_number': '10737_2',
+          'scenario_number': '10733_1',
           'n_weeks': 1}  # settings
 
 
@@ -29,10 +29,12 @@ def output_folder_check(scenario_folder):
             # Create a new directory because it does not exist
             os.makedirs(path)
 
-    path = 'pictures'
+    path = 'results'
     check_path(path)
     scenario_path = path + '/' + scenario_folder
-    check_path(scenario_path)
+    check_path(scenario_path + '/pictures')
+
+    return scenario_path
 
 
 if __name__ == '__main__':
@@ -53,7 +55,7 @@ if __name__ == '__main__':
     v = ModelVars()
     start_node = True # если True, определяет переменную start_d как нахождение водителя в узле i в t_set[0], иначе start_d - ребро a с отправлением в t_set[0]
 
-    plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, data.case_id)
+    plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, scenario_path)
 
     add_variables(m, data, v, start_node)
     constraint_creator(m, data, v, start_node)
@@ -74,23 +76,23 @@ if __name__ == '__main__':
     m.update()
 
     # save the defined model in .lp format
-    m.write('nfp.lp')
+    m.write(scenario_path + '/nfp.lp')
     m.optimize()
 
     if m.Status == GRB.OPTIMAL or m.Status == GRB.TIME_LIMIT:
         print('Optimal objective: %g' % m.ObjVal)
         # save the solution output
-        m.write('nfp.sol')
+        m.write(scenario_path + '/nfp.sol')
         # write a csv file
         results, hired_drivers = result_csv(m)
         arc2driver, node2driver = get_driver_route(results, hired_drivers)
         # plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id,  solved=True, idle_nodes=node2driver, hired_drivers=hired_drivers)
-        gantt_diagram(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id, idle_nodes=node2driver, hired_drivers=hired_drivers)
+        gantt_diagram(arc2driver, data.distances, data.t_set, data.time_horizon, scenario_path, idle_nodes=node2driver, hired_drivers=hired_drivers)
     elif m.Status != GRB.INFEASIBLE:
         print('Optimization was stopped with status %d' % m.Status)
     else:
         m.computeIIS()
-        m.write('inf.ilp')
+        m.write(scenario_path + '/inf.ilp')
 
     print('Total execution time', datetime.now() - now)
 

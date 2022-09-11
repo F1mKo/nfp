@@ -46,14 +46,14 @@ class ModelData:
         # generate nodes set N
         self.nodes = tuplelist(i for i in range(self.n + 1))  # set of nodes in the network
 
-        # generate drivers set D
-        self.drivers = tuplelist(d for d in range(0, 5 * (self.n + 1))) if (self.n + 1) >= 3 else \
-            tuplelist(d for d in range(0, 4 * (self.n + 1) ** 2))  # set of drivers
-
         # catch forward/backward departure data
         self.departures = [self.cell_reader(case_db, 'Выезды прямо'),
                            self.cell_reader(case_db, 'Выезды обратно')]
         print('departures', self.departures)
+
+        # generate drivers set D
+        #self.drivers = tuplelist(d for d in range(0, 16))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 7 * self.n * len(self.departures[0])))  # set of drivers
 
         # generate forward/backward Arc matrix with departure and arriving info
         self.arcs_dep, self.arcs_arr = self.arcs_network_creator()  # set of arcs (works) to be served
@@ -366,14 +366,14 @@ def get_driver_route(results, driver_num):
     return result, idles
 
 
-def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, idle_nodes=None, hired_drivers=None):
+def plot_network(arcs_list, dist, t_set, time_horizon, scenario_path, solved=False, idle_nodes=None, hired_drivers=None):
     """
     Arc network plotting function. Shows the generated Arcs grid or optimal driver routes set on the timeline.
     :param arcs_list: generated Arcs set or optimal driver arc subsets to serve
     :param dist: set of arc time durations
     :param t_set: time grid
     :param time_horizon: time horison
-    :param case_id: case number to plot and files export
+    :param scenario_path: folder path corresponding to case number to plot and files export
     :param solved: bool value to control plotting
     :param idle_nodes: driver idle timelines
     :param hired_drivers: list of hired drivers
@@ -419,13 +419,13 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
             plt.xticks(range(len(dist)+1))
             plt.ylim([-1, time_horizon + 1])
             plt.yticks(range(0, time_horizon + 1, 24))
-            plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
+            plt.savefig(scenario_path + "/pictures/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
             plt.show()
             d += 1
     else:
         plt.figure()
         ax = plt.axes()
-        plt.title('Транспортная сеть - сценарий ' + case_id)
+        plt.title('Транспортная сеть - сценарий ' + scenario_path.split("/")[1])
         color = 'blue'
         plot_iterator(arcs_list)
         ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
@@ -434,18 +434,18 @@ def plot_network(arcs_list, dist, t_set, time_horizon, case_id, solved=False, id
         plt.xticks(range(len(dist)+1))
         plt.ylim([-1, time_horizon + 1])
         plt.yticks(range(0, time_horizon + 1, 24))
-        plt.savefig('pictures/' + case_id + "/nfp_pic.pdf", format="pdf")
+        plt.savefig(scenario_path + "/pictures/nfp_pic.pdf", format="pdf")
         plt.show()
 
 
-def gantt_diagram(arcs_list, dist, t_set, time_horizon, case_id, idle_nodes=None, hired_drivers=None):
+def gantt_diagram(arcs_list, dist, t_set, time_horizon, scenario_path, idle_nodes=None, hired_drivers=None):
     """
     Drivers Gantt diagram plotting function. Shows the optimal driver schedule on the timeline.
     :param arcs_list: generated Arcs set or optimal driver arc subsets to serve
     :param dist: set of arc time durations
     :param t_set: time grid
     :param time_horizon: time horison
-    :param case_id: case number to plot and files export
+    :param scenario_path: folder path corresponding to case number to plot and files export
     :param idle_nodes: driver idle timelines
     :param hired_drivers: list of hired drivers
     :return: None
@@ -492,6 +492,6 @@ def gantt_diagram(arcs_list, dist, t_set, time_horizon, case_id, idle_nodes=None
         color = {-1: 'red', 1: 'blue', 0: 'gray'}
         plot_iterator(arcs)
         plot_iterator(idle, is_idles=True)
-        plt.savefig('pictures/' + case_id + "/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
+        plt.savefig(scenario_path + "/pictures/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
         plt.show()
         d += 1
