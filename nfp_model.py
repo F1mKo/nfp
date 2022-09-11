@@ -67,15 +67,31 @@ def add_driver_movement(m: Model, data: ModelData, v: ModelVars, start_node=True
     :param start_node: choose model variable start_d node version if True else alternative arcs version
     :return: None
     """
+
+    def calc_set(Aax, arcs_set, n, ts):
+        resultX = []
+        for (i, j, t) in arcs_set:
+            if ((j == n + 1) or (j == n - 1)) and i == n and t == ts:
+                for (i1, j1, t1) in Aax[n, j, ts]:
+                    append_flag = True
+                    for (i2, j2, t2) in resultX:
+                        if (i1, j1, t1) == (i2, j2, t2):
+                            append_flag = False
+                            break
+                    if append_flag:
+                        resultX.append([i1, j1, t1])
+        result = resultX
+        return result
+
     if start_node:
+        # set_Aax, set_Aay = calc_set(data.Aax, data.Aay, data.arcs_dep, n, ts)
         tupledict({(d, n, ts): m.addConstr(
-            quicksum((quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[n, j, ts])
-                      + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[n, j, t]))
-                     for (i, j, t) in data.arcs_dep if
-                     ((j == n + 1) or (j == n - 1)) and i == n and t == ts) + quicksum(
+            quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in calc_set(data.Aax, data.arcs_dep, n, ts))
+            + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in calc_set(data.Aay, data.arcs_dep, n, ts)) +
+            (v.start_d[d, n, ts] if ts == data.t_set[0] else quicksum(
                 v.s_dit[d, n, data.t_set[k - 1]] for k in range(len(data.t_set))
-                if data.t_set[k] == ts) == v.s_dit[d, n, ts] + v.x_da.sum(d, n, '*', ts)
-            + v.y_da.sum(d, n, '*', ts) - (v.start_d[d, n, ts] if ts == data.t_set[0] else 0),
+                if data.t_set[k] == ts)) == v.s_dit[d, n, ts] + v.x_da.sum(d, n, '*', ts)
+            + v.y_da.sum(d, n, '*', ts),
             name="driver_movement_{0}_{1}_{2}".format(d, n, ts))
             for d in data.drivers for n in data.nodes for ts in data.t_set})
 
@@ -93,7 +109,7 @@ def add_driver_movement(m: Model, data: ModelData, v: ModelVars, start_node=True
         '''
         d_move_main = tupledict({(d, n, ts):
             m.addConstr(
-                quicksum((quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[n, j, ts])
+                quicksum((quicksum(v.x_da[d, i1, j1, t1] for (i1, j1, t1) in data.Aax[n, j, t])
                           + quicksum(v.y_da[d, i2, j2, t2] for (i2, j2, t2) in data.Aay[n, j, t]))
                          for (i, j, t) in data.arcs_dep if
                          ((j == n + 1) or (j == n - 1)) and i == n and t == ts) +
