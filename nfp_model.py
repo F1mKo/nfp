@@ -69,6 +69,13 @@ def add_driver_movement(m: Model, data: ModelData, v: ModelVars, start_node=True
     """
 
     def calc_set(Aax, arcs_set, n, ts):
+        """
+        :param Aax:
+        :param arcs_set:
+        :param n:
+        :param ts:
+        :return: set of unique close arcs (without repetitions)
+        """
         resultX = []
         for (i, j, t) in arcs_set:
             if ((j == n + 1) or (j == n - 1)) and i == n and t == ts:
@@ -262,7 +269,7 @@ def add_objective(m: Model, data: ModelData, v: ModelVars):
     """
     #   Create driver selection definition
     tupledict({d: m.addConstr(
-        v.x_da.sum(d, '*', '*', '*') + v.y_da.sum(d, '*', '*', '*') <= (data.n * data.cycle_length) * v.b_d[d],
+        v.x_da.sum(d, '*', '*', '*') + v.y_da.sum(d, '*', '*', '*') <= (data.n * data.cycle_length * len(data.departures[0])) * v.b_d[d],
         name="driver_selection_definition_{0}".format(d))
         for d in data.drivers})
 

@@ -52,8 +52,8 @@ class ModelData:
         print('departures', self.departures)
 
         # generate drivers set D
-        #self.drivers = tuplelist(d for d in range(0, 16))  # set of drivers
-        self.drivers = tuplelist(d for d in range(0, 7 * self.n * len(self.departures[0])))  # set of drivers
+        # self.drivers = tuplelist(d for d in range(0, 16))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 7 * max([2, self.n]) * len(self.departures[0])))  # set of drivers
 
         # generate forward/backward Arc matrix with departure and arriving info
         self.arcs_dep, self.arcs_arr = self.arcs_network_creator()  # set of arcs (works) to be served
@@ -277,7 +277,7 @@ def find_closest_arrive(a_, arcs_arr, arc_len, rest_time, time_horizon):  # 11 o
     return result
 
 
-def result_csv(m: Model):
+def result_csv(m: Model, scenario_path):
     """
     Catches variables values from model optimization results. Creates a csv-type file with determined columns
     :param m: Model class instance
@@ -287,7 +287,7 @@ def result_csv(m: Model):
     varInfo = get_var_values(m)
 
     # Write to csv
-    with open('model_out.csv', 'w') as my_file:
+    with open(scenario_path + '/model_out.csv', 'w') as my_file:
         wr = csv.writer(my_file, quoting=csv.QUOTE_ALL)
         wr.writerow(columns)
         for varinfo in varInfo:
