@@ -7,7 +7,7 @@ plt.rcParams["font.family"] = "Times New Roman"
 plt.rcParams.update({'font.size': 14,
                      'font.family': 'Times New Roman',
                      'mathtext.fontset': 'cm'})
-
+# plt.rcParams["figure.figsize"] = (10,3)
 
 class ModelData:
     def __init__(self, case_db, config):
@@ -53,7 +53,7 @@ class ModelData:
 
         # generate drivers set D
         # self.drivers = tuplelist(d for d in range(0, 16))  # set of drivers
-        self.drivers = tuplelist(d for d in range(0, 7 * max([2, self.n]) * len(self.departures[0])))  # set of drivers
+        self.drivers = tuplelist(d for d in range(0, 7 * max([2, self.n]) * len(self.departures[0]) * (1 + sum([1 for i in self.crew_size if i == 2]))))  # set of drivers
 
         # generate forward/backward Arc matrix with departure and arriving info
         self.arcs_dep, self.arcs_arr = self.arcs_network_creator()  # set of arcs (works) to be served
@@ -423,9 +423,9 @@ def plot_network(arcs_list, dist, t_set, time_horizon, scenario_path, solved=Fal
             plt.show()
             d += 1
     else:
-        plt.figure()
+        plt.figure(figsize=(10, 8))
         ax = plt.axes()
-        plt.title('Транспортная сеть - сценарий ' + scenario_path.split("/")[1])
+        # plt.title('Транспортная сеть - сценарий ' + scenario_path.split("/")[1])
         color = 'blue'
         plot_iterator(arcs_list)
         ax.set_xlabel('Точки смены экипажа ' + r'$(N)$')
@@ -438,7 +438,7 @@ def plot_network(arcs_list, dist, t_set, time_horizon, scenario_path, solved=Fal
         plt.show()
 
 
-def gantt_diagram(arcs_list, dist, t_set, time_horizon, scenario_path, idle_nodes=None, hired_drivers=None):
+def gantt_diagram(arcs_list, dist, t_set, time_horizon, scenario_path, idle_nodes=None, hired_drivers=None, true_numbers = False):
     """
     Drivers Gantt diagram plotting function. Shows the optimal driver schedule on the timeline.
     :param arcs_list: generated Arcs set or optimal driver arc subsets to serve
@@ -477,9 +477,9 @@ def gantt_diagram(arcs_list, dist, t_set, time_horizon, scenario_path, idle_node
 
     d = 0
     for arcs, idle in zip(arcs_list, idle_nodes):
-        fig, gnt = plt.subplots()
+        fig, gnt = plt.subplots(figsize=(15, 6))
         gnt.grid(True)
-        plt.title("Маршрут водителя {0}".format(hired_drivers[d]))
+        plt.title("Маршрут водителя {0}".format(hired_drivers[d] if true_numbers else d))
         gnt.set_xlim(-1, time_horizon + 1)
         gnt.set_ylim(0 - 1 / 2 , 1 * len(dist) + 1 / 2)
         gnt.set_xlabel('Время, час')
@@ -492,6 +492,6 @@ def gantt_diagram(arcs_list, dist, t_set, time_horizon, scenario_path, idle_node
         color = {-1: 'red', 1: 'blue', 0: 'gray'}
         plot_iterator(arcs)
         plot_iterator(idle, is_idles=True)
-        plt.savefig(scenario_path + "/pictures/driver_{0}_route.pdf".format(hired_drivers[d]), format="pdf")
+        plt.savefig(scenario_path + "/pictures/driver_{0}_route.pdf".format(hired_drivers[d] if true_numbers else d), format="pdf")
         plt.show()
         d += 1
