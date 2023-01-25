@@ -227,13 +227,13 @@ def add_week_work_constraints(m: Model, data: ModelData, v: ModelVars):
                                               name="weekly_equality_constraints_x_{0}_{1}_{2}_{3}".format(d, i, j, t,
                                                                                                           k1)))
                for (i, j, t) in data.arcs_dep
-               for d in data.drivers for k1 in data.week_num[1:] if t <= 168})
+               for d in data.drivers for k1 in data.week_num[-1:] if t <= 168})
 
     tupledict({(d, i, j, t, k1): (m.addConstr(v.y_da[d, i, j, t] == v.y_da[d, i, j, (t + 168 * k1) % data.time_horizon],
                                               name="weekly_equality_constraints_y_{0}_{1}_{2}_{3}".format(d, i, j, t,
                                                                                                           k1)))
                for (i, j, t) in data.arcs_dep
-               for d in data.drivers for k1 in data.week_num[1:] if t <= 168})
+               for d in data.drivers for k1 in data.week_num[-1:] if t <= 168})
 
     # Create weekly rest constraints
     tupledict({(d, ki): m.addConstr(quicksum(v.y_da[d, i, j, t] for (k, i, j, t) in data.Akw if k == ki) >= v.b_d[d],
