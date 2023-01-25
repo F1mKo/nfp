@@ -21,17 +21,23 @@ def parse_data(input_file, sheet_name):
 
 
 def output_folder_check(scenario_folder):
-    def check_path(path):
+    def check_path(path, rewrite_flag=True):
         # Check whether the specified path exists or not
         isExist = os.path.exists(path)
 
         if not isExist:
             # Create a new directory because it does not exist
             os.makedirs(path)
+            return path
+        elif not rewrite_flag:
+            new_path = path + '__' + ''.join(random.choice(['1','2','3','4','5','6','7','8','9']) for i in range(3))
+            os.makedirs(new_path)
+            return new_path
+        else:
+            return path
 
-    path = 'results'
-    check_path(path)
-    scenario_path = path + '/' + scenario_folder
+    path = check_path('results')
+    scenario_path = check_path(path + '/' + scenario_folder, rewrite_flag=False)
     check_path(scenario_path + '/pictures')
 
     return scenario_path
@@ -71,7 +77,8 @@ if __name__ == '__main__':
     m.setParam('MIPFocus', 1)
     m.setParam('Threads', 12)
     # m.setParam('MIPGap', 0.1)
-    m.setParam('Timelimit', 3000)
+    m.setParam('Timelimit', 14400)
+    m.setParam('LogFile', scenario_path + '/m.log')
     # m.setParam('SolutionLimit', 1)
     m.update()
 
@@ -84,7 +91,7 @@ if __name__ == '__main__':
         # save the solution output
         m.write(scenario_path + '/nfp.sol')
         # write a csv file
-        results, hired_drivers = result_csv(m)
+        results, hired_drivers = result_csv(m, scenario_path)
         arc2driver, node2driver = get_driver_route(results, hired_drivers)
         # plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id,  solved=True, idle_nodes=node2driver, hired_drivers=hired_drivers)
         gantt_diagram(arc2driver, data.distances, data.t_set, data.time_horizon, scenario_path, idle_nodes=node2driver, hired_drivers=hired_drivers)
