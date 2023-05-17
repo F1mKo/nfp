@@ -5,12 +5,7 @@ from gurobipy import Model, GRB
 from model_data import ModelData, plot_network, result_csv, get_driver_route, gantt_diagram
 from nfp_model import ModelVars, add_variables, constraint_creator
 import random
-
-config = {'input_file': 'scenarios.xlsx',
-          'sheet_name': 'augmentation',
-          'model_type': 'NFP',
-          'scenario_number': '10733_1',
-          'n_weeks': 1}  # settings
+from time import gmtime, strftime, localtime
 
 
 def parse_data(input_file, sheet_name):
@@ -21,29 +16,36 @@ def parse_data(input_file, sheet_name):
 
 
 def output_folder_check(scenario_folder):
-    def check_path(path, rewrite_flag=True):
+    def check_path(path_to_check):
         # Check whether the specified path exists or not
-        isExist = os.path.exists(path)
+        is_exist = os.path.exists(path_to_check)
 
-        if not isExist:
+        if not is_exist:
             # Create a new directory because it does not exist
-            os.makedirs(path)
-            return path
-        elif not rewrite_flag:
-            new_path = path + '__' + ''.join(random.choice(['1','2','3','4','5','6','7','8','9']) for i in range(3))
+            os.makedirs(path_to_check)
+
+        return path_to_check
+
+    def check_run_path(run_path, save_time=True):
+        if save_time:
+            new_path = run_path + '__' + ''.join(strftime("%Y_%m_%d_%H_%M_%S", localtime()))
             os.makedirs(new_path)
             return new_path
         else:
-            return path
+            # Check whether the specified path exists or not
+            is_exist = os.path.exists(run_path)
+            if not is_exist:
+                os.makedirs(run_path)
+            return run_path
 
     path = check_path('results')
-    scenario_path = check_path(path + '/' + scenario_folder, rewrite_flag=False)
+    scenario_path = check_run_path(path + '/' + scenario_folder, save_time=True)
     check_path(scenario_path + '/pictures')
 
     return scenario_path
 
 
-if __name__ == '__main__':
+def run_opt(run_config, res_file):
     """
     Creates ModelData, ModelVars, Model instances to define and solve the model
     :param case_db: scenarios database
@@ -51,26 +53,22 @@ if __name__ == '__main__':
     :return:
         model instance
     """
+    print('RUN scenario ' + run_config['scenario_number'])
+
     now = datetime.now()
-    scenario_path = output_folder_check(config['scenario_number'])
-    case = parse_data(config['input_file'], config['sheet_name'])
+    scenario_path = output_folder_check(run_config['scenario_number'])
+    case = parse_data(run_config['input_file'], run_config['sheet_name'])
     random.seed(0)
     # Declare and initialize model
-    m = Model(config['model_type'])
-    data = ModelData(case, config)
+    m = Model(run_config['model_type'])
+    data = ModelData(case, run_config)
     v = ModelVars()
-    start_node = True # если True, определяет переменную start_d как нахождение водителя в узле i в t_set[0], иначе start_d - ребро a с отправлением в t_set[0]
+    start_node = True
 
     plot_network(data.arcs_dep, data.distances, data.t_set, data.time_horizon, scenario_path)
 
     add_variables(m, data, v, start_node)
     constraint_creator(m, data, v, start_node)
-    # constraint_creator(m, data, v, baseline=False)
-
-    # fix previous solution to search infeasibility
-    # start_sol = read_sol_csv()
-    # print(start_sol)
-    # fix_arcs(m, data, v, solution=start_sol)
 
     # Some model preferences to setup
     # m.setParam('Heuristics', 0.5)
@@ -88,19 +86,40 @@ if __name__ == '__main__':
 
     if m.Status == GRB.OPTIMAL or m.Status == GRB.TIME_LIMIT:
         print('Optimal objective: %g' % m.ObjVal)
+        res_file.write('Optimal objective for ' + run_config['scenario_number'] +': %g' % m.ObjVal)
+        res_file.write('\n')
         # save the solution output
-        m.write(scenario_path + '/nfp.sol')
-        # write a csv file
-        results, hired_drivers = result_csv(m, scenario_path)
-        arc2driver, node2driver = get_driver_route(results, hired_drivers)
-        # plot_network(arc2driver, data.distances, data.t_set, data.time_horizon, data.case_id,  solved=True, idle_nodes=node2driver, hired_drivers=hired_drivers)
-        gantt_diagram(arc2driver, data.distances, data.t_set, data.time_horizon, scenario_path, idle_nodes=node2driver, hired_drivers=hired_drivers)
+        if m.ObjVal < GRB.INFINITY:
+            m.write(scenario_path + '/nfp.sol')
+            # write a csv file
+            results, hired_drivers = result_csv(m, scenario_path)
+            arc2driver, node2driver = get_driver_route(results, hired_drivers)
+            gantt_diagram(arc2driver, data.distances, data.t_set, data.time_horizon, scenario_path,
+                          idle_nodes=node2driver, hired_drivers=hired_drivers)
+
     elif m.Status != GRB.INFEASIBLE:
-        print('Optimization was stopped with status %d' % m.Status)
+        print(run_config['scenario_number'] + ' : Optimization was stopped with status %d' % m.Status)
+        res_file.write(run_config['scenario_number'] + ' : Optimization was stopped with status %d' % m.Status)
+        res_file.write('\n')
     else:
-        m.computeIIS()
-        m.write(scenario_path + '/inf.ilp')
+        print(run_config['scenario_number'] + ' : Optimization was stopped with status %d' % m.Status)
+        res_file.write(run_config['scenario_number'] + ' : Optimization was stopped with status %d' % m.Status)
+        res_file.write('\n')
+        # m.computeIIS()
+        # m.write(scenario_path + '/inf.ilp')
 
     print('Total execution time', datetime.now() - now)
+
+
+if __name__ == '__main__':
+    config = {'input_file': 'scenarios.xlsx',
+              'sheet_name': 'augmentation',
+              'model_type': 'NFP',
+              'scenario_number': '10737_1',
+              'n_weeks': 1}  # settings
+
+    with open("run_results.txt", "a") as file:
+        run_opt(config, file)
+
 
 
